@@ -1,3 +1,8 @@
+![Python](https://img.shields.io/badge/Python-3.11+-blue)
+![Streamlit](https://img.shields.io/badge/Streamlit-App-red)
+![Elastic](https://img.shields.io/badge/Elastic-SIEM-yellow)
+![License](https://img.shields.io/badge/Use-Defensive%20Security-green)
+
 # ThreatScope
 
 AI-assisted telecom threat hunting and CTI analysis platform designed for defensive security operations, telecom threat detection, and SOC automation.
