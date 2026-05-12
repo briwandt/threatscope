@@ -228,6 +228,60 @@ GROQ_API_KEY = "your_api_key_here"
 ```
 
 ---
+## Elastic SIEM Integration
+
+ThreatScope includes a local Elastic SIEM lab built with Docker and Elasticsearch.
+
+The platform can:
+
+- ingest simulated SIEM telemetry
+- query Elasticsearch indexes
+- continuously poll telemetry
+- correlate suspicious activity
+- generate autonomous alerts
+
+### Local Elastic Architecture
+
+```text
+Simulated Telemetry
+        ↓
+Elasticsearch
+        ↓
+ThreatScope Connector Layer
+        ↓
+Correlation Engine
+        ↓
+MITRE ATT&CK Mapping
+        ↓
+AI-Assisted CTI Analysis
+```
+
+### Elastic Features Demonstrated
+
+- Docker-based Elastic deployment
+- Elasticsearch telemetry ingestion
+- Real-time polling
+- Autonomous detection logic
+- Risk scoring
+- Correlation-based alerting
+- Telecom-focused telemetry analysis
+
+### Example Elastic Telemetry
+
+```json
+{
+  "@timestamp": "2026-05-11T07:41:22Z",
+  "source": "SIEM",
+  "event": "vpn_login",
+  "user": "contractor.mills",
+  "status": "success",
+  "source_ip": "185.220.101.44",
+  "country": "RU",
+  "device": "new-device",
+  "category": "vpn_iab"
+}
+```
+
 
 # Future Enhancements
 
