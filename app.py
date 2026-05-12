@@ -342,9 +342,72 @@ st.write(
     f"Risk Score: {risk_score}"
 )
 
-st.write(
-    f"Severity: {severity}"
-)
+# =========================
+# MITRE ATT&CK MAPPING
+# =========================
+
+st.subheader("MITRE ATT&CK Mapping")
+
+mitre_mappings = []
+
+if "powershell.exe" in input_text:
+    mitre_mappings.append(
+        ("T1059.001", "PowerShell")
+    )
+
+if "wmic.exe" in input_text:
+    mitre_mappings.append(
+        ("T1047", "Windows Management Instrumentation")
+    )
+
+if "vpn_login" in input_text:
+    mitre_mappings.append(
+        ("T1078", "Valid Accounts")
+    )
+
+if "ssh" in input_text.lower():
+    mitre_mappings.append(
+        ("T1021", "Remote Services")
+    )
+
+if "GlobalAdmin" in input_text:
+    mitre_mappings.append(
+        ("T1098", "Account Manipulation")
+    )
+
+if "oauth" in input_text.lower():
+    mitre_mappings.append(
+        ("T1550", "Use Alternate Authentication Material")
+    )
+
+if "SS7" in input_text:
+    mitre_mappings.append(
+        ("T1430", "Telecom Signaling Collection")
+    )
+
+if "Diameter" in input_text:
+    mitre_mappings.append(
+        ("T1430", "Telecom Signaling Collection")
+    )
+
+if "GTP" in input_text:
+    mitre_mappings.append(
+        ("T1430", "Telecom Signaling Collection")
+    )
+
+if len(mitre_mappings) > 0:
+
+    for technique_id, technique_name in mitre_mappings:
+
+        st.write(
+            f"- {technique_id}: {technique_name}"
+        )
+
+else:
+
+    st.write(
+        "No ATT&CK mappings identified."
+    )
 
 for finding in findings:
 
