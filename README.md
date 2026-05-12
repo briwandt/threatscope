@@ -19,56 +19,19 @@ The platform combines:
 
 - Elastic SIEM telemetry
 - Correlation-based detection logic
+- MITRE ATT&CK mapping
 - AI-generated threat analysis
-- MITRE ATT&CK mapping
-- Telecom-specific threat modeling
+- Telecom-focused threat modeling
 - Autonomous hunt workflows
+- Groq-hosted Llama 3 inference
 
-ThreatScope was designed as a portfolio project to demonstrate practical detection engineering, AI-assisted threat hunting, and telecom-focused CTI capabilities.
+ThreatScope was designed as a portfolio project to demonstrate practical:
 
----
-
-# Features
-
-## Autonomous Threat Hunting
-- Continuous telemetry polling
-- Automated threat correlation
-- Real-time alert generation
-- Autonomous hunt engine behavior
-
-## Telecom Threat Detection
-- SS7 abuse indicators
-- Diameter signaling anomalies
-- GTP roaming abuse
-- Telecom surveillance detection
-- Edge infrastructure targeting
-
-## Living-off-the-Land (LOTL) Detection
-- PowerShell abuse
-- WMI execution
-- Remote management activity
-- Valid account misuse
-- OAuth persistence
-
-## Initial Access Broker (IAB) Detection
-- VPN credential abuse
-- Suspicious contractor access
-- Remote access anomalies
-- Privilege escalation behavior
-- Cloud identity abuse
-
-## AI-Assisted CTI Analysis
-- Executive summaries
-- Threat actor behavior analysis
-- MITRE ATT&CK mapping
-- Defensive hunt recommendations
-- Containment recommendations
-
-## Elastic SIEM Integration
-- Elasticsearch connector support
-- Simulated SIEM telemetry
-- Local Docker-based Elastic lab
-- Real-time telemetry ingestion
+- detection engineering
+- AI-assisted threat hunting
+- telecom CTI analysis
+- SIEM integration
+- autonomous SOC workflows
 
 ---
 
