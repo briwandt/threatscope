@@ -268,15 +268,27 @@ threatscope/
 ├── app.py
 ├── requirements.txt
 ├── README.md
+├── LICENSE
 │
 ├── engine/
 │   └── detections.py
 │
+├── detections/
+│   └── identity.yml
+│
 ├── reports/
 │   └── sample_hunt_report.md
 │
+├── screenshots/
+│   ├── detection_engine.png
+│   ├── timeline.png
+│   ├── entity_graph.png
+│   ├── hunt_report.png
+│   └── ai_analysis.png
+│
 ├── load_sample_logs.py
 ├── docker-compose.yml
+│
 └── .streamlit/
     └── secrets.toml
 ```
