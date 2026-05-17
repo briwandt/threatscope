@@ -118,6 +118,23 @@ The detection engine identifies suspicious activity and returns structured findi
 - Hunt pivot
 
 ---
+### YAML Detection Rules
+
+ThreatScope supports external YAML-based detection rules for modular threat detection engineering.
+
+Example rule structure:
+
+```yaml
+rules:
+
+  - title: Suspicious Foreign VPN Access
+    match:
+      - vpn_login
+      - country=RU
+    severity: HIGH
+    confidence: MEDIUM
+    mitre: T1078 - Valid Accounts
+---
 
 ### Threat Timeline
 
