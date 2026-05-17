@@ -1,3 +1,13 @@
+"""
+ThreatScope Elastic sample loader.
+
+This script loads simulated telecom, identity, endpoint, and contractor-risk
+telemetry into a local Elasticsearch index called threatscope-logs.
+
+Run this only when Elasticsearch is running locally and you want to test the
+Elastic SIEM Connector mode in app.py.
+"""
+
 from elasticsearch import Elasticsearch
 
 # Connect to Elasticsearch
