@@ -3,7 +3,6 @@
 ![Elastic](https://img.shields.io/badge/Elastic-SIEM-yellow)
 ![License](https://img.shields.io/badge/Use-Defensive%20Security-green)
 
-````markdown
 # ThreatScope
 
 AI-assisted threat hunting platform for telecom, identity, endpoint, and cloud infrastructure investigations.
