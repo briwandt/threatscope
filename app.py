@@ -143,7 +143,7 @@ data_source = st.sidebar.selectbox(
     "Data Source",
     [
         "Built-in Samples",
-        "Elastic SIEM Connector"
+        "Elastic SIEM Connector (Local Demo)"
     ]
 )
 
@@ -186,7 +186,8 @@ if data_source == "Built-in Samples":
         height=300
     )
 
-else:
+elif data_source == "Elastic SIEM Connector (Local Demo)":
+    
     st.subheader("Elastic SIEM Connector")
 
     elastic_index = st.text_input(
