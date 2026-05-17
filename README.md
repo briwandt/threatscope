@@ -30,6 +30,34 @@ This project demonstrates detection engineering, threat hunting, and AI-assisted
 
 ---
 
+## Detection Engine
+
+![Detection Engine](screenshots/detection_engine.png)
+
+---
+
+## Threat Timeline
+
+![Threat Timeline](screenshots/timeline.png)
+
+---
+
+## Entity Correlation Graph
+
+![Entity Graph](screenshots/entity_graph.png)
+
+---
+
+## Hunt Report Generation
+
+![Hunt Report](screenshots/hunt_report.png)
+
+---
+
+## AI-Assisted Hunt Analysis
+
+![AI Analysis](screenshots/ai_analysis.png)
+
 ## What ThreatScope Detects
 
 ThreatScope currently models a correlated investigation involving:
