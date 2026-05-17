@@ -3,185 +3,225 @@
 ![Elastic](https://img.shields.io/badge/Elastic-SIEM-yellow)
 ![License](https://img.shields.io/badge/Use-Defensive%20Security-green)
 
+````markdown
 # ThreatScope
 
-AI-assisted telecom threat hunting and CTI analysis platform designed for defensive security operations, telecom threat detection, and SOC automation.
+AI-assisted threat hunting platform for telecom, identity, endpoint, and cloud infrastructure investigations.
+
+**Live Demo:** https://threatscope-ame8t7utwmtjl8rnyauohb.streamlit.app/
 
 ---
 
-# Overview
+## Overview
 
-ThreatScope is a defensive cyber threat hunting platform built to simulate how modern SOC and CTI teams can use AI-assisted workflows to identify suspicious activity across:
+ThreatScope is a defensive security project that simulates how a SOC or CTI team can investigate suspicious activity across multiple telemetry sources.
 
-- Telecom signaling infrastructure
-- Cloud identity systems
-- VPN and remote access telemetry
-- Endpoint activity
-- Edge network devices
-- Contractor and insider threat scenarios
+The app correlates simulated events into a hunt workflow with:
 
-The platform combines:
-
-- Elastic SIEM telemetry
-- Correlation-based detection logic
+- Detection findings
+- Risk scoring
 - MITRE ATT&CK mapping
-- AI-generated threat analysis
-- Telecom-focused threat modeling
-- Autonomous hunt workflows
-- Groq-hosted Llama 3 inference
+- Threat timeline reconstruction
+- Entity correlation graph
+- AI-assisted analyst summary
+- Markdown hunt report export
+- Optional local Elasticsearch ingestion
 
-ThreatScope was designed as a portfolio project to demonstrate practical:
-
-- detection engineering
-- AI-assisted threat hunting
-- telecom CTI analysis
-- SIEM integration
-- autonomous SOC workflows
+This project demonstrates detection engineering, threat hunting, and AI-assisted SOC workflows.
 
 ---
 
-# Stack
+## What ThreatScope Detects
+
+ThreatScope currently models a correlated investigation involving:
+
+- Suspicious VPN access
+- MFA approval after suspicious login
+- SSH remote management enablement
+- PowerShell execution
+- WMI lateral movement
+- Privileged cloud role assignment
+- OAuth consent abuse
+- SS7 signaling anomalies
+- Diameter roaming anomalies
+- GTP roaming session anomalies
+- Contractor verification risk
+
+---
+
+## Core Workflow
+
+```text
+Telemetry Input
+      ↓
+Detection Engine
+      ↓
+Risk Scoring
+      ↓
+MITRE ATT&CK Mapping
+      ↓
+Threat Timeline
+      ↓
+Entity Correlation Graph
+      ↓
+AI-Assisted Hunt Analysis
+      ↓
+Markdown Hunt Report
+```
+
+---
+
+## Features
+
+### Detection Engine
+
+ThreatScope uses a modular detection engine located in:
+
+```text
+engine/detections.py
+```
+
+The detection engine identifies suspicious activity and returns structured findings with:
+
+- Title
+- Severity
+- Confidence
+- MITRE ATT&CK mapping
+- Description
+- Hunt pivot
+
+---
+
+### Threat Timeline
+
+ThreatScope reconstructs suspicious activity into a chronological investigation timeline.
+
+Example timeline events include:
+
+```text
+07:41 | Foreign VPN Login
+07:48 | MFA Approval
+07:56 | SSH Remote Management Enabled
+08:02 | PowerShell Execution
+08:04 | WMI Remote Execution
+08:06 | Privileged Role Escalation
+08:44 | OAuth Persistence Activity
+```
+
+---
+
+### Entity Correlation Graph
+
+ThreatScope builds an interactive graph showing relationships between:
+
+- Users
+- Source IPs
+- Hosts
+- Edge devices
+- Processes
+- OAuth apps
+- Telecom signaling protocols
+- Privileged roles
+
+This helps visualize how separate events connect into one hunt case.
+
+---
+
+### MITRE ATT&CK Mapping
+
+Current mapped techniques include:
+
+- T1078 — Valid Accounts
+- T1621 — Multi-Factor Authentication Request Generation
+- T1059.001 — PowerShell
+- T1047 — Windows Management Instrumentation
+- T1098 — Account Manipulation
+- T1550 — Use Alternate Authentication Material
+- T1021 — Remote Services
+- T1430 — Location Tracking
+
+---
+
+### Hunt Report Export
+
+ThreatScope generates a downloadable Markdown hunt report containing:
+
+- Executive summary
+- Detection findings
+- Severity and confidence
+- MITRE ATT&CK mapping
+- Timeline
+- Recommended next steps
+
+---
+
+## Technology Stack
 
 - Python
 - Streamlit
+- Groq API
+- Llama 3.3
+- NetworkX
+- PyVis
 - Elasticsearch
 - Docker
-- Groq API
-- Llama 3
-- Prompt Engineering
 - MITRE ATT&CK
-- Telecom CTI
-- Detection Engineering
 
 ---
 
-# Architecture
+## Project Structure
 
-ThreatScope continuously:
-
-1. Polls telemetry sources
-2. Correlates weak threat indicators
-3. Calculates risk scores
-4. Generates autonomous alerts
-5. Produces AI-assisted CTI analysis
-
-The platform simulates how AI-enhanced SOC tooling can accelerate:
-- threat triage
-- detection engineering
-- analyst workflows
-- telecom threat hunting
-
----
-
-# Telecom Threat Coverage
-
-## Signaling Threats
-- SS7 abuse
-- Diameter abuse
-- GTP anomalies
-- Roaming manipulation
-- Location tracking indicators
-- SMS interception indicators
-
-## Edge Infrastructure Threats
-- VPN appliances
-- Cisco edge devices
-- Routers
-- Firewalls
-- Remote management interfaces
-
-## Identity Threats
-- Fraudulent contractors
-- Insider risk
-- OAuth abuse
-- Privileged role escalation
-- Impossible travel activity
+```text
+threatscope/
+│
+├── app.py
+├── requirements.txt
+├── README.md
+│
+├── engine/
+│   └── detections.py
+│
+├── reports/
+│   └── sample_hunt_report.md
+│
+├── load_sample_logs.py
+├── docker-compose.yml
+└── .streamlit/
+    └── secrets.toml
+```
 
 ---
 
-# MITRE ATT&CK Coverage
+## Public Demo Notes
 
-Examples include:
+The public Streamlit demo uses the **Built-in Samples** data source.
 
-- T1078 — Valid Accounts
-- T1059 — Command and Scripting Interpreter
-- T1047 — Windows Management Instrumentation
-- T1136 — Create Account
-- T1098 — Account Manipulation
-- T1021 — Remote Services
-- T1556 — Modify Authentication Process
+The **Elastic SIEM Connector (Local Demo)** option is intended for local testing only. It requires Elasticsearch to be running on the same machine as the app.
+
+On Streamlit Cloud, `localhost:9200` does not point to your local computer, so Elastic mode is expected to fail unless Elasticsearch is hosted externally.
 
 ---
 
-# Local Elastic SIEM Lab
+## Run Locally
 
-ThreatScope supports a local Elastic SIEM lab using Docker.
-
-Telemetry can be:
-- simulated
-- ingested into Elasticsearch
-- automatically polled by ThreatScope
-- correlated into AI-assisted detections
-
----
-
-# Public Demo
-
-Public Streamlit deployment uses:
-- simulated telemetry
-- autonomous threat correlation
-- AI-assisted CTI analysis
-
-Elastic SIEM integration was tested locally using Docker and Elasticsearch.
-
----
-
-# Run Locally
-
-## Clone Repository
+Clone the repository:
 
 ```bash
 git clone https://github.com/briwandt/threatscope.git
 cd threatscope
 ```
 
-## Install Requirements
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run Streamlit
+Create Streamlit secrets:
 
 ```bash
-streamlit run app.py
+mkdir .streamlit
 ```
-
----
-
-# Elastic SIEM Lab Setup
-
-## Start Elastic + Kibana
-
-```bash
-docker compose up -d
-```
-
-## Load Sample Telemetry
-
-```bash
-python load_sample_logs.py
-```
-
-## Open Elasticsearch
-
-```text
-http://localhost:9200
-```
-
----
-
-# Streamlit Secrets
 
 Create:
 
@@ -189,99 +229,97 @@ Create:
 .streamlit/secrets.toml
 ```
 
-Add:
+Add your Groq API key:
 
 ```toml
-GROQ_API_KEY = "your_api_key_here"
+GROQ_API_KEY = "your_groq_api_key_here"
+```
+
+Run the app:
+
+```bash
+streamlit run app.py
 ```
 
 ---
-## Elastic SIEM Integration
 
-ThreatScope includes a local Elastic SIEM lab built with Docker and Elasticsearch.
+## Optional Local Elastic SIEM Lab
 
-The platform can:
+ThreatScope includes an optional local Elasticsearch lab.
 
-- ingest simulated SIEM telemetry
-- query Elasticsearch indexes
-- continuously poll telemetry
-- correlate suspicious activity
-- generate autonomous alerts
+Start Elastic:
 
-### Local Elastic Architecture
+```bash
+docker compose up -d
+```
+
+Load sample telemetry:
+
+```bash
+python load_sample_logs.py
+```
+
+Then open the app and select:
 
 ```text
-Simulated Telemetry
-        ↓
-Elasticsearch
-        ↓
-ThreatScope Connector Layer
-        ↓
-Correlation Engine
-        ↓
-MITRE ATT&CK Mapping
-        ↓
-AI-Assisted CTI Analysis
+Elastic SIEM Connector (Local Demo)
 ```
 
-### Elastic Features Demonstrated
+---
 
-- Docker-based Elastic deployment
-- Elasticsearch telemetry ingestion
-- Real-time polling
-- Autonomous detection logic
-- Risk scoring
-- Correlation-based alerting
-- Telecom-focused telemetry analysis
+## Sample Hunt Case
 
-### Example Elastic Telemetry
+The built-in sample simulates a correlated threat scenario:
 
-```json
-{
-  "@timestamp": "2026-05-11T07:41:22Z",
-  "source": "SIEM",
-  "event": "vpn_login",
-  "user": "contractor.mills",
-  "status": "success",
-  "source_ip": "185.220.101.44",
-  "country": "RU",
-  "device": "new-device",
-  "category": "vpn_iab"
-}
+```text
+Suspicious contractor VPN login
+      ↓
+MFA approval
+      ↓
+SSH enabled on edge infrastructure
+      ↓
+PowerShell and WMI execution
+      ↓
+Privileged cloud role assignment
+      ↓
+OAuth consent persistence
+      ↓
+Telecom signaling anomalies
 ```
 
+---
 
-# Future Enhancements
+## Future Enhancements
 
+- External JSON/YAML detection rules
 - Sigma rule ingestion
-- UEBA correlation
-- Threat intelligence enrichment
-- Live alert streaming
-- Detection tuning
-- SOAR integration
-- Multi-tenant telemetry support
-- Threat graph visualization
-- SOC dashboarding
+- Real log parser support
+- STIX/TAXII enrichment
+- Elastic Cloud integration
+- Directional graph edges
+- Detection tuning workflow
+- Authentication baseline modeling
+- PDF report export
 
 ---
 
-# Purpose
+## Purpose
 
-This project demonstrates:
-- AI-assisted threat hunting
-- Telecom CTI analysis
+ThreatScope demonstrates practical skills in:
+
 - Detection engineering
-- SIEM integration
-- Autonomous SOC workflows
-- Practical defensive AI applications
+- Threat hunting
+- SOC workflow design
+- Telecom CTI analysis
+- MITRE ATT&CK mapping
+- Python security tooling
+- AI-assisted analyst workflows
 
 ---
 
-# Disclaimer
+## Disclaimer
 
-This project is intended strictly for:
-- defensive security research
-- threat hunting education
-- detection engineering demonstrations
+ThreatScope is intended strictly for defensive security research, education, and portfolio demonstration.
 
 No offensive functionality is included.
+````
