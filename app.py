@@ -588,7 +588,70 @@ else:
     st.write(
         "No significant suspicious activity identified in current telemetry."
     )
+# =========================
+# HUNT REPORT GENERATOR
+# =========================
 
+st.subheader("Hunt Report")
+
+report_lines = []
+
+report_lines.append("# ThreatScope Hunt Report")
+report_lines.append("")
+report_lines.append("## Executive Summary")
+report_lines.append(
+    f"ThreatScope identified {len(detections)} detection(s) with an overall severity of {severity} and a risk score of {risk_score}."
+)
+report_lines.append("")
+
+report_lines.append("## Detection Findings")
+report_lines.append("")
+
+if len(detections) > 0:
+    for detection in detections:
+        report_lines.append(f"### {detection['title']}")
+        report_lines.append(f"- Severity: {detection['severity']}")
+        report_lines.append(f"- Confidence: {detection['confidence']}")
+        report_lines.append(f"- MITRE ATT&CK: {detection['mitre']}")
+        report_lines.append(f"- Description: {detection['description']}")
+        report_lines.append(f"- Hunt Pivot: {detection['hunt_pivot']}")
+        report_lines.append("")
+else:
+    report_lines.append("No significant detections identified.")
+    report_lines.append("")
+
+report_lines.append("## Timeline")
+report_lines.append("")
+
+if len(timeline_events) > 0:
+    for event in timeline_events:
+        report_lines.append(
+            f"- {event['time']} | {event['event']} | {event['severity']}"
+        )
+else:
+    report_lines.append("No timeline events identified.")
+
+report_lines.append("")
+report_lines.append("## Recommended Next Steps")
+report_lines.append("")
+report_lines.append("- Validate the source IPs, users, and devices involved.")
+report_lines.append("- Review privileged role assignments and OAuth consent grants.")
+report_lines.append("- Investigate telecom signaling anomalies across SS7, Diameter, and GTP.")
+report_lines.append("- Confirm whether activity aligns with approved maintenance or contractor access.")
+report_lines.append("- Preserve relevant logs for incident response review.")
+report_lines.append("")
+
+hunt_report = "\n".join(report_lines)
+
+st.download_button(
+    label="Download Hunt Report",
+    data=hunt_report,
+    file_name="threatscope_hunt_report.md",
+    mime="text/markdown"
+)
+
+with st.expander("Preview Hunt Report"):
+    st.markdown(hunt_report)
 # =========================
 # AI PROMPT
 # =========================
