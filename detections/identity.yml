@@ -1,0 +1,39 @@
+rules:
+
+  - title: Suspicious Foreign VPN Access
+    match:
+      - vpn_login
+      - country=RU
+    severity: HIGH
+    confidence: MEDIUM
+    mitre: T1078 - Valid Accounts
+    description: User authenticated from a foreign source location associated with elevated access risk.
+    hunt_pivot: Review VPN logins, failed authentication attempts, device fingerprints, and source ASN activity.
+
+  - title: MFA Approval Following Suspicious Login
+    match:
+      - mfa_push
+      - approved
+    severity: HIGH
+    confidence: MEDIUM
+    mitre: T1621 - Multi-Factor Authentication Request Generation
+    description: MFA approval observed following suspicious authentication activity.
+    hunt_pivot: Investigate MFA fatigue, repeated push attempts, and anomalous device registrations.
+
+  - title: Privileged Cloud Role Assignment
+    match:
+      - GlobalAdmin
+    severity: CRITICAL
+    confidence: HIGH
+    mitre: T1098 - Account Manipulation
+    description: Privileged administrative role assignment detected in cloud identity infrastructure.
+    hunt_pivot: Review role assignment history, conditional access changes, and recent authentication patterns.
+
+  - title: OAuth Persistence Activity
+    match:
+      - oauth
+    severity: CRITICAL
+    confidence: MEDIUM
+    mitre: T1550 - Use Alternate Authentication Material
+    description: Suspicious OAuth consent activity may indicate mailbox persistence or token abuse.
+    hunt_pivot: Investigate OAuth grants, application permissions, consent actor, and mailbox access patterns.
