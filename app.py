@@ -165,10 +165,11 @@ st.sidebar.write("Generating AI analysis")
 # AUTO REFRESH
 # =========================
 
-st_autorefresh(
-    interval=5000,
-    key="threatscope_refresh"
-)
+# Auto-refresh disabled so AI analysis and reports do not disappear.
+# st_autorefresh(
+#     interval=5000,
+#     key="threatscope_refresh"
+# )
 
 # =========================
 # DATA SOURCE LOGIC
