@@ -321,4 +321,4 @@ ThreatScope demonstrates practical skills in:
 ThreatScope is intended strictly for defensive security research, education, and portfolio demonstration.
 
 No offensive functionality is included.
-````
+
