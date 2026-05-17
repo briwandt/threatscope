@@ -3,3 +3,4 @@ openai
 elasticsearch<9
 streamlit-autorefresh
 networkx
+pyvis
