@@ -75,7 +75,23 @@ ThreatScope currently models a correlated investigation involving:
 - Contractor verification risk
 
 ---
+## Why ThreatScope Exists
 
+Modern SOC teams investigate attacks across fragmented telemetry sources including identity, endpoint, telecom, VPN, SaaS, and cloud infrastructure logs.
+
+ThreatScope was built to simulate how a threat hunter or detection engineer correlates these events into a coherent investigation workflow.
+
+The goal is not to replace a SIEM or EDR platform, but to demonstrate:
+
+- Detection engineering concepts
+- MITRE ATT&CK mapping
+- Threat correlation workflows
+- Timeline reconstruction
+- Entity relationship analysis
+- AI-assisted analyst triage
+
+   ---
+  
 ## Core Workflow
 
 ```text
@@ -98,7 +114,38 @@ Markdown Hunt Report
 
 ---
 
-## Features
+## Architecture
+
+```text
+┌──────────────────────┐
+│  Telemetry Sources   │
+│ VPN / EDR / Identity │
+│ Telecom / Cloud Logs │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Detection Engine     │
+│ YAML Detection Rules │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Correlation Layer    │
+│ Risk Scoring         │
+│ MITRE Mapping        │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Threat Timeline      │
+│ Entity Graph         │
+│ AI Hunt Analysis     │
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│ Hunt Report Export   │
+└──────────────────────┘
+```
+
+---
 
 ### Detection Engine
 
@@ -358,6 +405,21 @@ ThreatScope demonstrates practical skills in:
 - MITRE ATT&CK mapping
 - Python security tooling
 - AI-assisted analyst workflows
+
+---
+## Current Limitations
+
+ThreatScope is a portfolio and educational project, not a production SIEM.
+
+Current limitations include:
+
+- Simulated telemetry datasets
+- Limited parser support
+- No persistent backend datastore
+- No authentication or RBAC
+- No multi-user support
+- Simplified rule correlation logic
+- Local-only Elastic connector support
 
 ---
 
