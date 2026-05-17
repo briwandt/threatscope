@@ -187,7 +187,7 @@ if data_source == "Built-in Samples":
     )
 
 elif data_source == "Elastic SIEM Connector (Local Demo)":
-    
+
     st.subheader("Elastic SIEM Connector")
 
     elastic_index = st.text_input(
@@ -727,18 +727,26 @@ if st.button("Generate AI Analysis"):
                 model="llama-3.3-70b-versatile",
                 messages=[
                     {
+                        "role": "system",
+                        "content": "You are a defensive cyber threat intelligence analyst. Only provide defensive analysis, threat hunting guidance, and containment recommendations."
+                    },
+                    {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                max_tokens=900
+                temperature=0.3,
+                max_tokens=1200
             )
 
-        st.write(
-            response.choices[0].message.content
-        )
+        ai_output = response.choices[0].message.content
+
+        if ai_output and ai_output.strip():
+            st.markdown(ai_output)
+        else:
+            st.warning("Groq returned an empty response. Try again or reduce the prompt size.")
+            st.json(response.model_dump())
 
     except Exception as error:
-        st.error(
-            f"AI analysis temporarily unavailable: {error}"
-        )
+        st.error("AI analysis failed.")
+        st.exception(error)
