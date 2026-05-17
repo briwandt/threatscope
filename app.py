@@ -1,8 +1,14 @@
 import json
+import tempfile
+
+import networkx as nx
 import streamlit as st
-from openai import OpenAI
 from elasticsearch import Elasticsearch
+from openai import OpenAI
+from pyvis.network import Network
 from streamlit_autorefresh import st_autorefresh
+
+from engine.detections import run_detections
 
 # =========================
 # PAGE CONFIG
@@ -29,7 +35,7 @@ client = OpenAI(
 st.title("ThreatScope")
 
 st.write(
-    "AI-assisted telecom threat hunting and CTI analysis platform."
+    "AI-assisted telecom, identity, and infrastructure threat hunting platform."
 )
 
 st.success(
@@ -37,7 +43,7 @@ st.success(
 )
 
 st.caption(
-    "Continuously polling Elastic SIEM telemetry, correlating threat indicators, and generating AI-assisted CTI analysis."
+    "Correlating telemetry, mapping detections to MITRE ATT&CK, visualizing entity relationships, and generating AI-assisted hunt analysis."
 )
 
 # =========================
@@ -45,7 +51,6 @@ st.caption(
 # =========================
 
 def fetch_elastic_events(index_name="threatscope-logs", limit=25):
-
     es = Elasticsearch("http://localhost:9200")
 
     response = es.search(
@@ -72,7 +77,6 @@ def fetch_elastic_events(index_name="threatscope-logs", limit=25):
 
 
 def events_to_text(events):
-
     lines = []
 
     for event in events:
@@ -87,6 +91,21 @@ def events_to_text(events):
 # =========================
 
 sample_logs = {
+    "Full Correlated Hunt Case": """
+2026-05-11T07:41:22Z source=SIEM event=vpn_login user=contractor.mills status=success source_ip=185.220.101.44 country=RU device=new-device
+2026-05-11T07:44:02Z source=SIEM event=vpn_login user=contractor.mills status=success source_ip=104.28.45.12 country=US device=known-laptop
+2026-05-11T07:48:19Z source=SIEM event=mfa_push user=contractor.mills result=approved source_ip=185.220.101.44
+2026-05-11T07:56:10Z source=SIEM device=cisco-edge-12 event=remote_mgmt_enabled protocol=ssh actor=contractor.mills
+2026-05-11T08:02:44Z host=CORP-LT-448 process=powershell.exe command="-enc SQBFAFgA..." parent=winword.exe
+2026-05-11T08:04:30Z host=CORP-LT-448 process=wmic.exe command="wmic process call create powershell.exe"
+2026-05-11T08:06:55Z user=contractor.mills azure_role_assignment role=GlobalAdmin actor=contractor.mills
+2026-05-11T08:21:55Z source=telecom_signaling protocol=Diameter event=unusual_roaming_auth subscriber_region=US request_origin=foreign_network
+2026-05-11T08:25:13Z source=telecom_signaling protocol=SS7 event=location_query_volume_spike subscriber_count=218 request_origin=foreign_network
+2026-05-11T08:29:45Z source=telecom_signaling protocol=GTP event=abnormal_roaming_session subscriber_region=US request_origin=foreign_network
+2026-05-11T08:31:42Z applicant=remote.engineer.17 resume_signal=overlapping_employment verification_status=unverified requested_access=vpn,router_admin
+2026-05-11T08:40:12Z worker=contractor.mills login_location_change=US_to_RU time_window_minutes=15 device_status=new-device
+2026-05-11T08:44:19Z user=contractor.mills oauth_app_consent app=UnknownMailSync permissions=Mail.Read offline_access
+""",
 
     "VPN / Initial Access Broker Activity": """
 2026-05-11T07:41:22Z source=SIEM event=vpn_login user=contractor.mills status=success source_ip=185.220.101.44 country=RU device=new-device
@@ -132,16 +151,14 @@ alert_threshold = st.sidebar.slider(
     "Alert Threshold",
     1,
     15,
-    2
+    8
 )
 
-st.sidebar.success(
-    "Autonomous Hunt Engine Enabled"
-)
-
+st.sidebar.success("Autonomous Hunt Engine Enabled")
 st.sidebar.write("Status: ACTIVE")
-st.sidebar.write("Polling Elastic SIEM")
-st.sidebar.write("Correlating telemetry")
+st.sidebar.write("Polling telemetry")
+st.sidebar.write("Running detection engine")
+st.sidebar.write("Building entity graph")
 st.sidebar.write("Generating AI analysis")
 
 # =========================
@@ -158,7 +175,6 @@ st_autorefresh(
 # =========================
 
 if data_source == "Built-in Samples":
-
     selected_source = st.selectbox(
         "Simulated SIEM / Environment Source",
         list(sample_logs.keys())
@@ -171,7 +187,6 @@ if data_source == "Built-in Samples":
     )
 
 else:
-
     st.subheader("Elastic SIEM Connector")
 
     elastic_index = st.text_input(
@@ -187,7 +202,6 @@ else:
     )
 
     try:
-
         elastic_events = fetch_elastic_events(
             index_name=elastic_index,
             limit=limit
@@ -197,9 +211,7 @@ else:
             f"Connected to Elastic index: {elastic_index}"
         )
 
-        input_text = events_to_text(
-            elastic_events
-        )
+        input_text = events_to_text(elastic_events)
 
         st.text_area(
             "Elastic Telemetry",
@@ -208,7 +220,6 @@ else:
         )
 
     except Exception as error:
-
         st.error(
             f"Elastic connection failed: {error}"
         )
@@ -216,95 +227,40 @@ else:
         input_text = ""
 
 # =========================
-# ALWAYS-ON ANALYSIS
+# THREAT DETECTION ENGINE
+# =========================
+
+detections = run_detections(input_text)
+
+# =========================
+# RISK SCORING
 # =========================
 
 risk_score = 0
-findings = []
 
-# =========================
-# CORRELATION ENGINE
-# =========================
+severity_weights = {
+    "LOW": 1,
+    "MEDIUM": 2,
+    "HIGH": 3,
+    "CRITICAL": 4
+}
 
-if "vpn_login" in input_text:
-    risk_score += 1
-    findings.append(
-        "VPN access activity detected"
-    )
-
-if "country\": \"RU" in input_text or "country=RU" in input_text:
-    risk_score += 2
-    findings.append(
-        "Foreign login location detected"
-    )
-
-if "powershell.exe" in input_text:
-    risk_score += 2
-    findings.append(
-        "PowerShell execution detected"
-    )
-
-if "wmic.exe" in input_text:
-    risk_score += 2
-    findings.append(
-        "WMI execution detected"
-    )
-
-if "GlobalAdmin" in input_text:
-    risk_score += 3
-    findings.append(
-        "Privileged cloud role assignment detected"
-    )
-
-if "SS7" in input_text:
-    risk_score += 3
-    findings.append(
-        "SS7 signaling anomaly detected"
-    )
-
-if "Diameter" in input_text:
-    risk_score += 2
-    findings.append(
-        "Diameter signaling anomaly detected"
-    )
-
-if "GTP" in input_text:
-    risk_score += 2
-    findings.append(
-        "GTP signaling anomaly detected"
-    )
-
-if "oauth" in input_text.lower():
-    risk_score += 2
-    findings.append(
-        "OAuth persistence activity detected"
-    )
-
-if "unverified" in input_text:
-    risk_score += 2
-    findings.append(
-        "Unverified contractor activity detected"
-    )
-
-if "protocol\": \"ssh" in input_text or "protocol=ssh" in input_text:
-    risk_score += 1
-    findings.append(
-        "SSH remote management activity detected"
+for detection in detections:
+    risk_score += severity_weights.get(
+        detection["severity"],
+        1
     )
 
 # =========================
-# SEVERITY
+# OVERALL SEVERITY
 # =========================
 
-if risk_score >= 10:
+if risk_score >= 12:
     severity = "CRITICAL"
-
-elif risk_score >= 7:
+elif risk_score >= 8:
     severity = "HIGH"
-
 elif risk_score >= 4:
     severity = "MEDIUM"
-
 else:
     severity = "LOW"
 
@@ -312,35 +268,62 @@ else:
 # ALERTING
 # =========================
 
-if len(findings) >= 2 and risk_score >= alert_threshold:
-
-    st.error(
-        "ALERT: Correlated telecom threat activity detected"
-    )
-
-elif len(findings) >= 1:
-
-    st.warning(
-        "NOTICE: Suspicious activity observed"
-    )
-
+if severity == "CRITICAL":
+    st.error("ALERT: Critical correlated threat activity detected")
+elif severity == "HIGH":
+    st.warning("WARNING: High-risk suspicious activity identified")
+elif severity == "MEDIUM":
+    st.info("NOTICE: Medium-risk suspicious activity observed")
 else:
-
-    st.success(
-        "No significant threat indicators detected"
-    )
+    st.success("No significant threat indicators detected")
 
 # =========================
-# DISPLAY FINDINGS
+# DETECTION SUMMARY
 # =========================
 
-st.subheader(
-    "Correlation Engine Findings"
-)
+st.subheader("ThreatScope Detection Engine")
 
-st.write(
-    f"Risk Score: {risk_score}"
-)
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("Risk Score", risk_score)
+
+with col2:
+    st.metric("Overall Severity", severity)
+
+with col3:
+    st.metric("Detections", len(detections))
+
+# =========================
+# DETECTION RESULTS
+# =========================
+
+if len(detections) > 0:
+    for detection in detections:
+        if detection["severity"] == "CRITICAL":
+            st.error(
+                f"{detection['title']} ({detection['severity']})"
+            )
+        elif detection["severity"] == "HIGH":
+            st.warning(
+                f"{detection['title']} ({detection['severity']})"
+            )
+        else:
+            st.info(
+                f"{detection['title']} ({detection['severity']})"
+            )
+
+        st.write(detection["description"])
+
+        st.caption(
+            f"MITRE ATT&CK: {detection['mitre']} | Confidence: {detection['confidence']}"
+        )
+
+        st.caption(
+            f"Hunt Pivot: {detection['hunt_pivot']}"
+        )
+else:
+    st.success("No significant detections identified.")
 
 # =========================
 # MITRE ATT&CK MAPPING
@@ -348,75 +331,266 @@ st.write(
 
 st.subheader("MITRE ATT&CK Mapping")
 
-mitre_mappings = []
+mapped_techniques = set()
 
-if "powershell.exe" in input_text:
-    mitre_mappings.append(
-        ("T1059.001", "PowerShell")
+for detection in detections:
+    mapped_techniques.add(
+        detection["mitre"]
     )
 
-if "wmic.exe" in input_text:
-    mitre_mappings.append(
-        ("T1047", "Windows Management Instrumentation")
-    )
+if len(mapped_techniques) > 0:
+    for technique in sorted(mapped_techniques):
+        st.write(f"- {technique}")
+else:
+    st.write("No ATT&CK mappings identified.")
+
+# =========================
+# THREAT TIMELINE
+# =========================
+
+st.subheader("Threat Timeline")
+
+timeline_events = []
 
 if "vpn_login" in input_text:
-    mitre_mappings.append(
-        ("T1078", "Valid Accounts")
-    )
+    timeline_events.append({
+        "time": "07:41",
+        "event": "Foreign VPN Login",
+        "severity": "HIGH"
+    })
 
-if "ssh" in input_text.lower():
-    mitre_mappings.append(
-        ("T1021", "Remote Services")
-    )
+if "mfa_push" in input_text:
+    timeline_events.append({
+        "time": "07:48",
+        "event": "MFA Approval",
+        "severity": "MEDIUM"
+    })
+
+if "protocol=ssh" in input_text or 'protocol": "ssh' in input_text:
+    timeline_events.append({
+        "time": "07:56",
+        "event": "SSH Remote Management Enabled",
+        "severity": "HIGH"
+    })
+
+if "powershell.exe" in input_text:
+    timeline_events.append({
+        "time": "08:02",
+        "event": "PowerShell Execution",
+        "severity": "HIGH"
+    })
+
+if "wmic.exe" in input_text:
+    timeline_events.append({
+        "time": "08:04",
+        "event": "WMI Remote Execution",
+        "severity": "HIGH"
+    })
 
 if "GlobalAdmin" in input_text:
-    mitre_mappings.append(
-        ("T1098", "Account Manipulation")
-    )
-
-if "oauth" in input_text.lower():
-    mitre_mappings.append(
-        ("T1550", "Use Alternate Authentication Material")
-    )
-
-if "SS7" in input_text:
-    mitre_mappings.append(
-        ("T1430", "Telecom Signaling Collection")
-    )
+    timeline_events.append({
+        "time": "08:06",
+        "event": "Privileged Role Escalation",
+        "severity": "CRITICAL"
+    })
 
 if "Diameter" in input_text:
-    mitre_mappings.append(
-        ("T1430", "Telecom Signaling Collection")
-    )
+    timeline_events.append({
+        "time": "08:21",
+        "event": "Diameter Roaming Authentication Anomaly",
+        "severity": "HIGH"
+    })
+
+if "SS7" in input_text:
+    timeline_events.append({
+        "time": "08:25",
+        "event": "SS7 Signaling Spike",
+        "severity": "HIGH"
+    })
 
 if "GTP" in input_text:
-    mitre_mappings.append(
-        ("T1430", "Telecom Signaling Collection")
-    )
+    timeline_events.append({
+        "time": "08:29",
+        "event": "GTP Roaming Session Anomaly",
+        "severity": "HIGH"
+    })
 
-if len(mitre_mappings) > 0:
+if "unverified" in input_text:
+    timeline_events.append({
+        "time": "08:31",
+        "event": "Unverified Contractor Access Request",
+        "severity": "MEDIUM"
+    })
 
-    for technique_id, technique_name in mitre_mappings:
+if "oauth" in input_text.lower():
+    timeline_events.append({
+        "time": "08:44",
+        "event": "OAuth Persistence Activity",
+        "severity": "CRITICAL"
+    })
 
-        st.write(
-            f"- {technique_id}: {technique_name}"
+if len(timeline_events) > 0:
+    for event in timeline_events:
+        if event["severity"] == "CRITICAL":
+            st.error(
+                f"{event['time']} | {event['event']}"
+            )
+        elif event["severity"] == "HIGH":
+            st.warning(
+                f"{event['time']} | {event['event']}"
+            )
+        else:
+            st.info(
+                f"{event['time']} | {event['event']}"
+            )
+else:
+    st.success("No correlated timeline activity identified.")
+
+# =========================
+# ENTITY CORRELATION GRAPH
+# =========================
+
+st.subheader("Entity Correlation Graph")
+
+graph = nx.Graph()
+
+def add_graph_node(name, color):
+    if name not in graph:
+        graph.add_node(
+            name,
+            color=color,
+            title=name
         )
 
-else:
 
-    st.write(
-        "No ATT&CK mappings identified."
+def add_graph_edge(source, target):
+    graph.add_edge(
+        source,
+        target
     )
 
-for finding in findings:
+if "contractor.mills" in input_text:
+    add_graph_node("contractor.mills", "red")
 
+if "185.220.101.44" in input_text:
+    add_graph_node("185.220.101.44", "orange")
+
+if "104.28.45.12" in input_text:
+    add_graph_node("104.28.45.12", "orange")
+
+if "cisco-edge-12" in input_text:
+    add_graph_node("cisco-edge-12", "purple")
+
+if "CORP-LT-448" in input_text:
+    add_graph_node("CORP-LT-448", "purple")
+
+if "powershell.exe" in input_text:
+    add_graph_node("powershell.exe", "yellow")
+
+if "wmic.exe" in input_text:
+    add_graph_node("wmic.exe", "yellow")
+
+if "GlobalAdmin" in input_text:
+    add_graph_node("GlobalAdmin", "pink")
+
+if "UnknownMailSync" in input_text:
+    add_graph_node("UnknownMailSync", "blue")
+
+if "Diameter" in input_text:
+    add_graph_node("Diameter", "green")
+
+if "SS7" in input_text:
+    add_graph_node("SS7", "green")
+
+if "GTP" in input_text:
+    add_graph_node("GTP", "green")
+
+if "remote.engineer.17" in input_text:
+    add_graph_node("remote.engineer.17", "gray")
+
+if "contractor.mills" in input_text and "185.220.101.44" in input_text:
+    add_graph_edge("contractor.mills", "185.220.101.44")
+
+if "contractor.mills" in input_text and "104.28.45.12" in input_text:
+    add_graph_edge("contractor.mills", "104.28.45.12")
+
+if "contractor.mills" in input_text and "cisco-edge-12" in input_text:
+    add_graph_edge("contractor.mills", "cisco-edge-12")
+
+if "contractor.mills" in input_text and "CORP-LT-448" in input_text:
+    add_graph_edge("contractor.mills", "CORP-LT-448")
+
+if "CORP-LT-448" in input_text and "powershell.exe" in input_text:
+    add_graph_edge("CORP-LT-448", "powershell.exe")
+
+if "powershell.exe" in input_text and "wmic.exe" in input_text:
+    add_graph_edge("powershell.exe", "wmic.exe")
+
+if "contractor.mills" in input_text and "GlobalAdmin" in input_text:
+    add_graph_edge("contractor.mills", "GlobalAdmin")
+
+if "contractor.mills" in input_text and "UnknownMailSync" in input_text:
+    add_graph_edge("contractor.mills", "UnknownMailSync")
+
+if "contractor.mills" in input_text and "Diameter" in input_text:
+    add_graph_edge("contractor.mills", "Diameter")
+
+if "contractor.mills" in input_text and "SS7" in input_text:
+    add_graph_edge("contractor.mills", "SS7")
+
+if "contractor.mills" in input_text and "GTP" in input_text:
+    add_graph_edge("contractor.mills", "GTP")
+
+if "remote.engineer.17" in input_text and "contractor.mills" in input_text:
+    add_graph_edge("remote.engineer.17", "contractor.mills")
+
+if len(graph.nodes) > 0:
+    net = Network(
+        height="500px",
+        width="100%",
+        bgcolor="#111111",
+        font_color="white"
+    )
+
+    net.from_nx(graph)
+
+    with tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".html"
+    ) as tmp_file:
+        net.save_graph(tmp_file.name)
+
+        with open(
+            tmp_file.name,
+            "r",
+            encoding="utf-8"
+        ) as graph_file:
+            html_content = graph_file.read()
+
+    st.components.v1.html(
+        html_content,
+        height=550
+    )
+else:
+    st.info("No entity relationships identified.")
+
+# =========================
+# HUNT SUMMARY
+# =========================
+
+st.subheader("Hunt Summary")
+
+if len(detections) > 0:
     st.write(
-        f"- {finding}"
+        "ThreatScope identified correlated suspicious activity across identity, infrastructure, endpoint, and telecom telemetry sources."
+    )
+else:
+    st.write(
+        "No significant suspicious activity identified in current telemetry."
     )
 
 # =========================
-# PROMPT
+# AI PROMPT
 # =========================
 
 prompt = f"""
@@ -426,6 +600,7 @@ Analyze the telemetry for:
 
 - Initial Access Broker activity
 - VPN compromise
+- MFA abuse
 - PowerShell abuse
 - WMI execution
 - Living-off-the-land techniques
@@ -442,16 +617,17 @@ Analyze the telemetry for:
 Telemetry:
 {input_text}
 
-Correlation Findings:
-{findings}
+Structured Detections:
+{json.dumps(detections, indent=2)}
+
+Timeline:
+{json.dumps(timeline_events, indent=2)}
 
 Risk Score:
 {risk_score}
 
 Severity:
 {severity}
-
-Focus ONLY on defensive analysis, detection, containment, and threat hunting.
 
 Provide:
 
@@ -463,8 +639,11 @@ Provide:
 6. Identity Risk
 7. Recommended Hunt Queries
 8. Recommended Containment Steps
-9. Confidence
-10. Severity
+9. False Positive Considerations
+10. Confidence
+11. Severity
+
+Focus ONLY on defensive analysis and threat hunting.
 """
 
 # =========================
@@ -474,14 +653,12 @@ Provide:
 st.subheader("ThreatScope AI Analysis")
 
 st.info(
-    "Autonomous hunting is active. AI analysis is generated on demand to conserve API tokens."
+    "AI-assisted analysis is generated on demand to conserve API usage."
 )
 
 if st.button("Generate AI Analysis"):
-
     try:
         with st.spinner("Analyzing telemetry with ThreatScope AI..."):
-
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
@@ -490,10 +667,14 @@ if st.button("Generate AI Analysis"):
                         "content": prompt
                     }
                 ],
-                max_tokens=700
+                max_tokens=900
             )
 
-        st.write(response.choices[0].message.content)
+        st.write(
+            response.choices[0].message.content
+        )
 
     except Exception as error:
-        st.error(f"AI analysis temporarily unavailable: {error}")
+        st.error(
+            f"AI analysis temporarily unavailable: {error}"
+        )

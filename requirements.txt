@@ -1,4 +1,5 @@
 streamlit
 openai
-streamlit-autorefresh
 elasticsearch<9
+streamlit-autorefresh
+networkx
