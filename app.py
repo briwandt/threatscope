@@ -155,22 +155,43 @@ client = OpenAI(
 )
 
 # =========================
-# TITLE
+# TITLE & PULSING STATUS BEACON
 # =========================
 
-st.markdown('<h1 class="glowing-title">ThreatScope</h1>', unsafe_allow_html=True)
+st.markdown("""
+<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b; padding-bottom: 15px; margin-bottom: 25px;">
+    <div>
+        <h1 class="glowing-title" style="margin: 0; padding: 0;">ThreatScope</h1>
+        <p style="color: #94a3b8; font-size: 0.95rem; margin-top: 5px; margin-bottom: 0; font-family: 'Inter', sans-serif;">
+            AI-assisted telecom, identity, and infrastructure threat hunting workspace.
+        </p>
+    </div>
+    <div style="display: flex; align-items: center; background-color: rgba(0, 240, 255, 0.05); border: 1px solid rgba(0, 240, 255, 0.2); border-radius: 8px; padding: 8px 16px; box-shadow: 0 0 15px rgba(0, 240, 255, 0.05);">
+        <div style="position: relative; width: 10px; height: 10px; margin-right: 12px;">
+            <span style="display: block; width: 10px; height: 10px; background-color: #00f0ff; border-radius: 50%;"></span>
+            <span style="position: absolute; top: 0; left: 0; display: block; width: 10px; height: 10px; background-color: #00f0ff; border-radius: 50%; animation: pulse-glow 2s infinite ease-in-out; opacity: 0.75;"></span>
+        </div>
+        <span style="color: #f8fafc; font-size: 0.85rem; font-weight: 700; font-family: 'Inter', sans-serif; letter-spacing: 0.05em;">HUNT ENGINE ACTIVE</span>
+    </div>
+</div>
+<style>
+@keyframes pulse-glow {
+    0% { transform: scale(1); opacity: 0.75; }
+    50% { transform: scale(2.2); opacity: 0; }
+    100% { transform: scale(1); opacity: 0; }
+}
+</style>
+""", unsafe_allow_html=True)
 
-st.write(
-    "AI-assisted telecom, identity, and infrastructure threat hunting platform."
-)
-
-st.success(
-    "ThreatScope Autonomous Hunt Engine: ACTIVE"
-)
-
-st.caption(
-    "Correlating telemetry, mapping detections to MITRE ATT&CK, visualizing entity relationships, and generating AI-assisted hunt analysis."
-)
+# =========================
+# WORKSPACE TABS INITIALIZATION
+# =========================
+tab_ingest, tab_hunt, tab_graph, tab_report = st.tabs([
+    "📥 Ingest & Intel",
+    "📊 Detections & Timeline",
+    "🕸️ Entity Correlation Graph",
+    "📝 AI Analysis & Report"
+])
 
 # =========================
 # HELPER FUNCTIONS & LOGIC
