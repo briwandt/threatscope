@@ -1,126 +1,246 @@
 # engine/detections.py
 
-def run_detections(input_text):
+def run_detections(events, raw_text=""):
+    """
+    Runs threat detections on a list of parsed events (dicts) or raw text fallback.
+    """
     detections = []
 
-    def add_detection(title, severity, confidence, mitre, description, hunt_pivot):
+    # 1. Suspicious Foreign VPN Access
+    has_vpn_ru = False
+    for ev in events:
+        is_vpn = ev.get("event") == "vpn_login" or ev.get("category") == "vpn_iab"
+        country = str(ev.get("country", "")).upper()
+        if (is_vpn and country == "RU") or (ev.get("event") == "vpn_login" and "RU" in str(ev)):
+            has_vpn_ru = True
+            break
+    if not has_vpn_ru and raw_text:
+        if "vpn_login" in raw_text and ("country=RU" in raw_text or 'country": "RU' in raw_text):
+            has_vpn_ru = True
+
+    if has_vpn_ru:
         detections.append({
-            "title": title,
-            "severity": severity,
-            "confidence": confidence,
-            "mitre": mitre,
-            "description": description,
-            "hunt_pivot": hunt_pivot
+            "title": "Suspicious Foreign VPN Access",
+            "severity": "HIGH",
+            "confidence": "MEDIUM",
+            "mitre": "T1078 - Valid Accounts",
+            "description": "User authenticated from a foreign source location associated with elevated access risk.",
+            "hunt_pivot": "Review VPN logins, failed authentication attempts, device fingerprints, and source ASN activity."
         })
 
-    if "vpn_login" in input_text and ("country=RU" in input_text or 'country": "RU' in input_text):
-        add_detection(
-            title="Suspicious Foreign VPN Access",
-            severity="HIGH",
-            confidence="MEDIUM",
-            mitre="T1078 - Valid Accounts",
-            description="User authenticated from a foreign source location associated with elevated access risk.",
-            hunt_pivot="Review VPN logins, failed authentication attempts, device fingerprints, and source ASN activity."
-        )
+    # 2. MFA Push Approved
+    has_mfa = False
+    for ev in events:
+        is_mfa = ev.get("event") == "mfa_push" or ev.get("category") == "vpn_iab"
+        result = str(ev.get("result", "")).lower()
+        if ev.get("event") == "mfa_push" and (result == "approved" or "approved" in str(ev)):
+            has_mfa = True
+            break
+    if not has_mfa and raw_text:
+        if "mfa_push" in raw_text and "approved" in raw_text:
+            has_mfa = True
 
-    if "mfa_push" in input_text and "approved" in input_text:
-        add_detection(
-            title="MFA Approval Following Suspicious Login",
-            severity="HIGH",
-            confidence="MEDIUM",
-            mitre="T1621 - Multi-Factor Authentication Request Generation",
-            description="MFA approval observed following suspicious authentication activity.",
-            hunt_pivot="Investigate MFA fatigue, repeated push attempts, and anomalous device registrations."
-        )
+    if has_mfa:
+        detections.append({
+            "title": "MFA Approval Following Suspicious Login",
+            "severity": "HIGH",
+            "confidence": "MEDIUM",
+            "mitre": "T1621 - Multi-Factor Authentication Request Generation",
+            "description": "MFA approval observed following suspicious authentication activity.",
+            "hunt_pivot": "Investigate MFA fatigue, repeated push attempts, and anomalous device registrations."
+        })
 
-    if "powershell.exe" in input_text:
-        add_detection(
-            title="PowerShell Execution",
-            severity="HIGH",
-            confidence="HIGH",
-            mitre="T1059.001 - PowerShell",
-            description="Potential living-off-the-land PowerShell execution detected.",
-            hunt_pivot="Review encoded commands, parent processes, network activity, and process lineage."
-        )
+    # 3. PowerShell Execution
+    has_powershell = False
+    for ev in events:
+        proc = str(ev.get("process", "")).lower()
+        cmd = str(ev.get("command", "")).lower()
+        if "powershell.exe" in proc or "powershell.exe" in cmd:
+            has_powershell = True
+            break
+    if not has_powershell and raw_text:
+        if "powershell.exe" in raw_text.lower():
+            has_powershell = True
 
-    if "wmic.exe" in input_text:
-        add_detection(
-            title="WMI Lateral Movement Activity",
-            severity="HIGH",
-            confidence="HIGH",
-            mitre="T1047 - Windows Management Instrumentation",
-            description="WMI execution may indicate lateral movement or remote execution activity.",
-            hunt_pivot="Identify source hosts, created processes, authentication events, and target systems."
-        )
+    if has_powershell:
+        detections.append({
+            "title": "PowerShell Execution",
+            "severity": "HIGH",
+            "confidence": "HIGH",
+            "mitre": "T1059.001 - PowerShell",
+            "description": "Potential living-off-the-land PowerShell execution detected.",
+            "hunt_pivot": "Review encoded commands, parent processes, network activity, and process lineage."
+        })
 
-    if "GlobalAdmin" in input_text:
-        add_detection(
-            title="Privileged Cloud Role Assignment",
-            severity="CRITICAL",
-            confidence="HIGH",
-            mitre="T1098 - Account Manipulation",
-            description="Privileged administrative role assignment detected in cloud identity infrastructure.",
-            hunt_pivot="Review role assignment history, conditional access changes, and recent authentication patterns."
-        )
+    # 4. WMI Lateral Movement Activity
+    has_wmic = False
+    for ev in events:
+        proc = str(ev.get("process", "")).lower()
+        cmd = str(ev.get("command", "")).lower()
+        if "wmic.exe" in proc or "wmic.exe" in cmd:
+            has_wmic = True
+            break
+    if not has_wmic and raw_text:
+        if "wmic.exe" in raw_text.lower():
+            has_wmic = True
 
-    if "oauth" in input_text.lower():
-        add_detection(
-            title="OAuth Persistence Activity",
-            severity="CRITICAL",
-            confidence="MEDIUM",
-            mitre="T1550 - Use Alternate Authentication Material",
-            description="Suspicious OAuth consent activity may indicate mailbox persistence or token abuse.",
-            hunt_pivot="Investigate OAuth grants, application permissions, consent actor, and mailbox access patterns."
-        )
+    if has_wmic:
+        detections.append({
+            "title": "WMI Lateral Movement Activity",
+            "severity": "HIGH",
+            "confidence": "HIGH",
+            "mitre": "T1047 - Windows Management Instrumentation",
+            "description": "WMI execution may indicate lateral movement or remote execution activity.",
+            "hunt_pivot": "Identify source hosts, created processes, authentication events, and target systems."
+        })
 
-    if "SS7" in input_text:
-        add_detection(
-            title="SS7 Signaling Anomaly",
-            severity="HIGH",
-            confidence="MEDIUM",
-            mitre="T1430 - Location Tracking",
-            description="Abnormal SS7 signaling activity may indicate subscriber tracking or telecom interception.",
-            hunt_pivot="Review signaling origin networks, request volume spikes, and subscriber targeting behavior."
-        )
+    # 5. Privileged Cloud Role Assignment
+    has_role = False
+    for ev in events:
+        role = str(ev.get("role", "")).lower()
+        event_name = str(ev.get("event", "")).lower()
+        if "globaladmin" in role or event_name == "azure_role_assignment":
+            has_role = True
+            break
+    if not has_role and raw_text:
+        if "GlobalAdmin" in raw_text:
+            has_role = True
 
-    if "Diameter" in input_text:
-        add_detection(
-            title="Diameter Signaling Abuse",
-            severity="HIGH",
-            confidence="MEDIUM",
-            mitre="T1430 - Location Tracking",
-            description="Unexpected Diameter roaming or authentication behavior detected.",
-            hunt_pivot="Review roaming authentication requests, peer networks, and failed authentication anomalies."
-        )
+    if has_role:
+        detections.append({
+            "title": "Privileged Cloud Role Assignment",
+            "severity": "CRITICAL",
+            "confidence": "HIGH",
+            "mitre": "T1098 - Account Manipulation",
+            "description": "Privileged administrative role assignment detected in cloud identity infrastructure.",
+            "hunt_pivot": "Review role assignment history, conditional access changes, and recent authentication patterns."
+        })
 
-    if "GTP" in input_text:
-        add_detection(
-            title="GTP Roaming Session Anomaly",
-            severity="HIGH",
-            confidence="MEDIUM",
-            mitre="T1430 - Location Tracking",
-            description="Abnormal roaming session activity identified within telecom infrastructure telemetry.",
-            hunt_pivot="Analyze GTP tunnel activity, roaming partners, subscriber sessions, and session duration anomalies."
-        )
+    # 6. OAuth Persistence Activity
+    has_oauth = False
+    for ev in events:
+        if "oauth" in str(ev).lower() or "oauth_app_consent" in ev or "permissions" in ev:
+            has_oauth = True
+            break
+    if not has_oauth and raw_text:
+        if "oauth" in raw_text.lower():
+            has_oauth = True
 
-    if "unverified" in input_text:
-        add_detection(
-            title="Contractor Verification Risk",
-            severity="MEDIUM",
-            confidence="LOW",
-            mitre="T1078 - Valid Accounts",
-            description="Unverified contractor onboarding activity detected with elevated access requests.",
-            hunt_pivot="Review onboarding records, access requests, VPN approvals, and privileged entitlement assignments."
-        )
+    if has_oauth:
+        detections.append({
+            "title": "OAuth Persistence Activity",
+            "severity": "CRITICAL",
+            "confidence": "MEDIUM",
+            "mitre": "T1550 - Use Alternate Authentication Material",
+            "description": "Suspicious OAuth consent activity may indicate mailbox persistence or token abuse.",
+            "hunt_pivot": "Investigate OAuth grants, application permissions, consent actor, and mailbox access patterns."
+        })
 
-    if "protocol=ssh" in input_text or 'protocol": "ssh' in input_text:
-        add_detection(
-            title="SSH Remote Management Enabled",
-            severity="MEDIUM",
-            confidence="MEDIUM",
-            mitre="T1021 - Remote Services",
-            description="SSH remote management enabled on edge infrastructure.",
-            hunt_pivot="Review infrastructure changes, maintenance windows, actor identity, and originating IP addresses."
-        )
+    # 7. SS7 Signaling Anomaly
+    has_ss7 = False
+    for ev in events:
+        proto = str(ev.get("protocol", "")).lower()
+        if "ss7" in proto or "ss7" in str(ev).lower():
+            has_ss7 = True
+            break
+    if not has_ss7 and raw_text:
+        if "SS7" in raw_text:
+            has_ss7 = True
+
+    if has_ss7:
+        detections.append({
+            "title": "SS7 Signaling Anomaly",
+            "severity": "HIGH",
+            "confidence": "MEDIUM",
+            "mitre": "T1430 - Location Tracking",
+            "description": "Abnormal SS7 signaling activity may indicate subscriber tracking or telecom interception.",
+            "hunt_pivot": "Review signaling origin networks, request volume spikes, and subscriber targeting behavior."
+        })
+
+    # 8. Diameter Signaling Abuse
+    has_diameter = False
+    for ev in events:
+        proto = str(ev.get("protocol", "")).lower()
+        if "diameter" in proto or "diameter" in str(ev).lower():
+            has_diameter = True
+            break
+    if not has_diameter and raw_text:
+        if "Diameter" in raw_text:
+            has_diameter = True
+
+    if has_diameter:
+        detections.append({
+            "title": "Diameter Signaling Abuse",
+            "severity": "HIGH",
+            "confidence": "MEDIUM",
+            "mitre": "T1430 - Location Tracking",
+            "description": "Unexpected Diameter roaming or authentication behavior detected.",
+            "hunt_pivot": "Review roaming authentication requests, peer networks, and failed authentication anomalies."
+        })
+
+    # 9. GTP Roaming Session Anomaly
+    has_gtp = False
+    for ev in events:
+        proto = str(ev.get("protocol", "")).lower()
+        if "gtp" in proto or "gtp" in str(ev).lower():
+            has_gtp = True
+            break
+    if not has_gtp and raw_text:
+        if "GTP" in raw_text:
+            has_gtp = True
+
+    if has_gtp:
+        detections.append({
+            "title": "GTP Roaming Session Anomaly",
+            "severity": "HIGH",
+            "confidence": "MEDIUM",
+            "mitre": "T1430 - Location Tracking",
+            "description": "Abnormal roaming session activity identified within telecom infrastructure telemetry.",
+            "hunt_pivot": "Analyze GTP tunnel activity, roaming partners, subscriber sessions, and session duration anomalies."
+        })
+
+    # 10. Contractor Verification Risk
+    has_contractor = False
+    for ev in events:
+        status = str(ev.get("verification_status", "")).lower()
+        resume = str(ev.get("resume_signal", "")).lower()
+        if "unverified" in status or "overlapping" in resume or "contractor_risk" in str(ev).lower():
+            has_contractor = True
+            break
+    if not has_contractor and raw_text:
+        if "unverified" in raw_text:
+            has_contractor = True
+
+    if has_contractor:
+        detections.append({
+            "title": "Contractor Verification Risk",
+            "severity": "MEDIUM",
+            "confidence": "LOW",
+            "mitre": "T1078 - Valid Accounts",
+            "description": "Unverified contractor onboarding activity detected with elevated access requests.",
+            "hunt_pivot": "Review onboarding records, access requests, VPN approvals, and privileged entitlement assignments."
+        })
+
+    # 11. SSH Remote Management Enabled
+    has_ssh = False
+    for ev in events:
+        proto = str(ev.get("protocol", "")).lower()
+        event_name = str(ev.get("event", "")).lower()
+        if "ssh" in proto or "ssh" in str(ev).lower() or event_name == "remote_mgmt_enabled":
+            has_ssh = True
+            break
+    if not has_ssh and raw_text:
+        if "protocol=ssh" in raw_text or 'protocol": "ssh' in raw_text:
+            has_ssh = True
+
+    if has_ssh:
+        detections.append({
+            "title": "SSH Remote Management Enabled",
+            "severity": "MEDIUM",
+            "confidence": "MEDIUM",
+            "mitre": "T1021 - Remote Services",
+            "description": "SSH remote management enabled on edge infrastructure.",
+            "hunt_pivot": "Review infrastructure changes, maintenance windows, actor identity, and originating IP addresses."
+        })
 
     return detections

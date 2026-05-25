@@ -1,5 +1,8 @@
 import json
 import tempfile
+import re
+import urllib.request
+import html as html_lib
 
 import networkx as nx
 import streamlit as st
@@ -15,9 +18,132 @@ from engine.detections import run_detections
 # =========================
 
 st.set_page_config(
-    page_title="ThreatScope",
+    page_title="ThreatScope | AI-Assisted Hunt Engine",
+    page_icon="🛡️",
     layout="wide"
 )
+
+# Custom premium styling
+st.markdown("""
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+    /* Global Styles */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif;
+    }
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+    }
+    
+    /* Glowing Title Effect */
+    .glowing-title {
+        background: linear-gradient(135deg, #00f0ff 0%, #a855f7 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 3rem !important;
+        font-weight: 800 !important;
+        margin-bottom: 5px !important;
+        font-family: 'Outfit', sans-serif !important;
+    }
+    
+    /* Metrics panel custom styles */
+    div[data-testid="stMetricValue"] {
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        color: #00f0ff !important;
+    }
+    div[data-testid="metric-container"] {
+        background-color: #161b26;
+        border: 1px solid #1e293b;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    }
+    
+    /* Glassmorphism sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #0b0e14 !important;
+        border-right: 1px solid #1e293b;
+    }
+    
+    /* Dynamic timeline styling */
+    .timeline-container {
+        border-left: 2px solid #1e293b;
+        margin-left: 10px;
+        padding-left: 20px;
+        position: relative;
+    }
+    .timeline-node {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    .timeline-node::before {
+        content: '';
+        position: absolute;
+        left: -27px;
+        top: 3px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: #00f0ff;
+        border: 2px solid #0b0e14;
+        box-shadow: 0 0 8px #00f0ff;
+    }
+    .timeline-node.critical::before {
+        background-color: #ef4444;
+        box-shadow: 0 0 8px #ef4444;
+    }
+    .timeline-node.high::before {
+        background-color: #f97316;
+        box-shadow: 0 0 8px #f97316;
+    }
+    .timeline-node.medium::before {
+        background-color: #eab308;
+        box-shadow: 0 0 8px #eab308;
+    }
+    .timeline-node.low::before {
+        background-color: #10b981;
+        box-shadow: 0 0 8px #10b981;
+    }
+    
+    .timeline-time {
+        font-family: monospace;
+        font-weight: 700;
+        color: #94a3b8;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Helper function to render styled detection cards
+def render_detection_card(detection):
+    severity = detection["severity"]
+    color_map = {
+        "CRITICAL": {"bg": "rgba(239, 68, 68, 0.1)", "border": "#ef4444", "text": "#fca5a5"},
+        "HIGH": {"bg": "rgba(249, 115, 22, 0.1)", "border": "#f97316", "text": "#fed7aa"},
+        "MEDIUM": {"bg": "rgba(234, 179, 8, 0.1)", "border": "#eab308", "text": "#fef08a"},
+        "LOW": {"bg": "rgba(16, 185, 129, 0.1)", "border": "#10b981", "text": "#a7f3d0"}
+    }
+    cfg = color_map.get(severity, {"bg": "#1e293b", "border": "#64748b", "text": "#cbd5e1"})
+    
+    st.markdown(f"""
+    <div style="background-color: {cfg['bg']}; border-left: 5px solid {cfg['border']}; border-right: 1px solid #1e293b; border-top: 1px solid #1e293b; border-bottom: 1px solid #1e293b; border-radius: 4px; padding: 15px; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="color: {cfg['text']}; font-size: 1.1rem; font-family: 'Outfit', sans-serif;">{detection['title']}</strong>
+            <span style="background-color: {cfg['border']}; color: #000; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; font-family: sans-serif;">{severity}</span>
+        </div>
+        <p style="color: #cbd5e1; margin-top: 8px; margin-bottom: 8px; font-size: 0.9rem; font-family: sans-serif;">{detection['description']}</p>
+        <div style="display: flex; gap: 15px; font-size: 0.8rem; color: #94a3b8; font-family: sans-serif;">
+            <span><strong>MITRE ATT&CK:</strong> {detection['mitre']}</span>
+            <span>|</span>
+            <span><strong>Confidence:</strong> {detection['confidence']}</span>
+        </div>
+        <div style="margin-top: 5px; font-size: 0.8rem; color: #94a3b8; font-family: sans-serif;">
+            <strong>Hunt Pivot:</strong> <span style="color: #00f0ff;">{detection['hunt_pivot']}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # =========================
 # GROQ CLIENT
@@ -32,7 +158,7 @@ client = OpenAI(
 # TITLE
 # =========================
 
-st.title("ThreatScope")
+st.markdown('<h1 class="glowing-title">ThreatScope</h1>', unsafe_allow_html=True)
 
 st.write(
     "AI-assisted telecom, identity, and infrastructure threat hunting platform."
@@ -47,8 +173,190 @@ st.caption(
 )
 
 # =========================
-# ELASTIC FUNCTIONS
+# HELPER FUNCTIONS & LOGIC
 # =========================
+
+def parse_log_line(line):
+    line = line.strip()
+    if not line:
+        return None
+    # Try parsing as JSON first
+    try:
+        return json.loads(line)
+    except Exception:
+        pass
+    
+    # Try parsing as timestamp + key=value pairs
+    event = {}
+    timestamp_match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s+(.*)$', line)
+    if timestamp_match:
+        event["@timestamp"] = timestamp_match.group(1)
+        remaining = timestamp_match.group(2)
+    else:
+        remaining = line
+        
+    pairs = re.findall(r'(\w+)=(?:"([^"]*)"|([^\s]*))', remaining)
+    for key, val_q, val_uq in pairs:
+        val = val_q if val_q is not None and val_q != "" else val_uq
+        event[key] = val
+        
+    return event
+
+
+def extract_text_from_file(uploaded_file):
+    if uploaded_file.name.endswith(".pdf"):
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(uploaded_file)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+            return text
+        except ImportError:
+            return "PDF support requires the 'pypdf' package. Please install it with: pip install pypdf"
+    else:
+        return uploaded_file.read().decode("utf-8", errors="ignore")
+
+
+def fetch_url_content(url):
+    try:
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as response:
+            html = response.read().decode('utf-8')
+            html = re.sub(r'<script.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<style.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+            html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
+            text = re.sub(r'<[^>]+>', ' ', html)
+            text = html_lib.unescape(text)
+            text = re.sub(r'\s+', ' ', text)
+            return text.strip()
+    except Exception as e:
+        return f"Error fetching URL: {e}"
+
+
+def extract_threat_brief_fallback(text):
+    ips = re.findall(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', text)
+    unique_ips = list(set(ips))
+    
+    users = re.findall(r'\buser=([^\s]+)\b|\bactor=([^\s]+)\b|\bworker=([^\s]+)\b', text)
+    unique_users = []
+    for u1, u2, u3 in users:
+        u = u1 or u2 or u3
+        if u and u not in unique_users:
+            unique_users.append(u)
+            
+    processes = re.findall(r'\bprocess=([^\s]+)\b|\bprocess\.name":\s*"([^"]+)"', text)
+    unique_procs = []
+    for p1, p2 in processes:
+        p = p1 or p2
+        if p and p not in unique_procs:
+            unique_procs.append(p)
+            
+    iocs = []
+    for ip in unique_ips:
+        iocs.append(f"IP: {ip}")
+    for u in unique_users:
+        iocs.append(f"User/Actor: {u}")
+    for p in unique_procs:
+        iocs.append(f"Process: {p}")
+        
+    behaviors = []
+    if "vpn_login" in text:
+        behaviors.append("VPN login event detected.")
+    if "mfa_push" in text:
+        behaviors.append("MFA push notification action detected.")
+    if "powershell.exe" in text:
+        behaviors.append("PowerShell command execution observed.")
+    if "wmic.exe" in text:
+        behaviors.append("Windows Management Instrumentation (WMI) query or execution.")
+    if "GlobalAdmin" in text:
+        behaviors.append("Privileged Azure GlobalAdmin role modification.")
+    if "SS7" in text or "Diameter" in text or "GTP" in text:
+        behaviors.append("Telecom signaling traffic anomaly (SS7/Diameter/GTP).")
+        
+    summary = "Automatically parsed security telemetry. "
+    if behaviors:
+        summary += f"Identified {len(behaviors)} potential behavioral events."
+    else:
+        summary += "No clear threat events parsed from telemetry."
+        
+    return {
+        "summary": summary,
+        "behaviors": behaviors if behaviors else ["No behaviors extracted."],
+        "iocs": iocs if iocs else ["No IOCs extracted."]
+    }
+
+
+@st.cache_data(show_spinner=True)
+def extract_threat_brief_from_llm(text):
+    if not text.strip():
+        return {
+            "summary": "No threat intelligence text provided.",
+            "behaviors": [],
+            "iocs": []
+        }
+    try:
+        prompt = f"""
+        You are a defensive cyber threat intelligence analyst.
+        Analyze the following security telemetry logs or threat report and extract:
+        1. A concise, professional executive summary of the threat activity (2-3 sentences).
+        2. A list of behavioral indicators (e.g., specific commands, TTPs, suspicious process creations, network commands, actions).
+        3. A list of indicators of compromise (IOCs) such as IP addresses, domains, files, registry keys, roles, or usernames.
+
+        Return ONLY a valid JSON object. Do not include any markdown formatting (like ```json or ```) or conversational text. The JSON object must have exactly this structure:
+        {{
+            "summary": "Detailed summary...",
+            "behaviors": [
+                "Behavior 1",
+                "Behavior 2"
+            ],
+            "iocs": [
+                "IOC 1",
+                "IOC 2"
+            ]
+        }}
+
+        Telemetry/Report to analyze:
+        {text}
+        """
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a defensive cyber threat intelligence analyst. Only return valid JSON."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.1,
+            max_tokens=800
+        )
+        output = response.choices[0].message.content.strip()
+        if output.startswith("```"):
+            output = re.sub(r'^```(?:json)?\n', '', output)
+            output = re.sub(r'\n```$', '', output)
+        data = json.loads(output)
+        return data
+    except Exception as e:
+        return extract_threat_brief_fallback(text)
+
+
+def render_card(title, content, color):
+    st.markdown(f"""
+    <div style="background-color: #111524; border: 1px solid #1e293b; border-radius: 10px; padding: 15px 20px; margin-bottom: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+        <h4 style="color: {color}; margin-top: 0; margin-bottom: 8px; font-weight: 600; font-size: 0.95rem; font-family: sans-serif;">{title}</h4>
+        <div style="color: #94a3b8; font-size: 0.85rem; line-height: 1.5; font-family: sans-serif;">{content}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 def fetch_elastic_events(index_name="threatscope-logs", limit=25):
     es = Elasticsearch("http://localhost:9200")
@@ -69,7 +377,6 @@ def fetch_elastic_events(index_name="threatscope-logs", limit=25):
     )
 
     events = []
-
     for hit in response["hits"]["hits"]:
         events.append(hit["_source"])
 
@@ -78,16 +385,15 @@ def fetch_elastic_events(index_name="threatscope-logs", limit=25):
 
 def events_to_text(events):
     lines = []
-
     for event in events:
         lines.append(
             json.dumps(event, default=str)
         )
-
     return "\n".join(lines)
 
+
 # =========================
-# SAMPLE LOGS
+# SAMPLE LOGS & STATIC BRIEFS
 # =========================
 
 sample_logs = {
@@ -133,6 +439,101 @@ sample_logs = {
 """
 }
 
+pre_extracted_briefs = {
+    "Full Correlated Hunt Case": {
+        "summary": "A coordinated, multi-stage attack was identified targeting identity, endpoint, and cloud infrastructure. The intrusion began with VPN credential abuse from a foreign IP (Russia), followed by MFA request approval, SSH remote management enablement on edge devices, and subsequent Windows Management Instrumentation (WMI) and PowerShell execution. The actor eventually escalated privileges to Azure 'GlobalAdmin' and established persistence via OAuth mail synchronization permissions, while simultaneously executing location query volume spikes and roaming sessions over telecom signaling protocols (Diameter, SS7, GTP).",
+        "behaviors": [
+            "Anomalous VPN authentication from a Russian IP (185.220.101.44) followed by a US login (104.28.45.12).",
+            "MFA request approval bypass following suspicious VPN credentials verification.",
+            "SSH remote management services enabled on edge router cisco-edge-12.",
+            "Execution of obfuscated, base64-encoded PowerShell command launched from winword.exe.",
+            "Lateral movement or process execution using wmic.exe on internal host CORP-LT-448.",
+            "Unauthorized assignment of the highly privileged 'GlobalAdmin' role to contractor.mills.",
+            "OAuth consent granted to an unknown application (UnknownMailSync) with Mail.Read scopes.",
+            "Telecom signaling anomalies: location queries volume spike (218 subscribers) via SS7, roaming auth anomalies via Diameter, and GTP roaming session anomaly."
+        ],
+        "iocs": [
+            "IP: 185.220.101.44 (Russia)",
+            "IP: 104.28.45.12 (United States)",
+            "Account: contractor.mills",
+            "Target Device: cisco-edge-12",
+            "Endpoint Host: CORP-LT-448",
+            "Registry/App: UnknownMailSync",
+            "Privileges: Azure GlobalAdmin Role",
+            "Protocols: SS7 (Location Query Spike), Diameter (Auth Anomaly), GTP (Roaming Session Anomaly)"
+        ]
+    },
+    "VPN / Initial Access Broker Activity": {
+        "summary": "Suspicious authentication activity was identified involving a contractor account. Two successful VPN logins were recorded within a 3-minute window from geographically impossible locations (Russia and the United States). An MFA push notification was subsequently approved from the Russian IP address, suggesting credentials compromise and MFA fatigue or bypass.",
+        "behaviors": [
+            "Geographically anomalous VPN login activity (impossible travel) within 3 minutes.",
+            "MFA push approval associated with a suspicious foreign IP address."
+        ],
+        "iocs": [
+            "IP: 185.220.101.44 (Russia)",
+            "IP: 104.28.45.12 (United States)",
+            "Account: contractor.mills"
+        ]
+    },
+    "Edge Device / LOTL Activity": {
+        "summary": "Defenders observed an active Living-off-the-Land (LOTL) campaign. The threat actor enabled SSH remote management on an edge router (cisco-edge-12), executed obfuscated PowerShell commands spawned from Microsoft Word, and utilized WMIC for local process creation. This activity was followed by the escalation of the actor's privileges to Azure GlobalAdmin.",
+        "behaviors": [
+            "Modification of edge router configuration to enable SSH remote management (cisco-edge-12).",
+            "Living-off-the-Land process execution (encoded PowerShell command spawned by winword.exe).",
+            "WMI invocation to remotely spawn PowerShell processes (wmic process call create).",
+            "Privilege escalation via unauthorized Azure GlobalAdmin assignment by contractor.mills."
+        ],
+        "iocs": [
+            "Device: cisco-edge-12",
+            "Host: CORP-LT-448",
+            "Process: powershell.exe",
+            "Process: wmic.exe",
+            "Parent Process: winword.exe",
+            "Role: GlobalAdmin",
+            "Account: contractor.mills",
+            "Command: -enc SQBFAFgA..."
+        ]
+    },
+    "Telecom Signaling Threats": {
+        "summary": "Significant signaling anomalies were identified in telecom core routing protocols. Telemetry indicates a location query volume spike targeting 218 subscribers via the SS7 protocol, coupled with unusual roaming authentication attempts over Diameter and abnormal GTP roaming sessions. This behavior is consistent with subscriber tracking and communication intercept campaigns.",
+        "behaviors": [
+            "SS7 location query volume spike targeting 218 unique subscribers from a foreign network.",
+            "Anomalous roaming authentication requests originating from foreign networks via Diameter.",
+            "Abnormal GTP roaming session establishment attempts."
+        ],
+        "iocs": [
+            "Protocols: SS7, Diameter, GTP",
+            "Context: Location query volume spike (218 subscribers)",
+            "Source: foreign_network"
+        ]
+    },
+    "Fraudulent Worker / Contractor Risk": {
+        "summary": "An identity and compliance threat was flagged regarding a contractor account. Anomalies include an overlapping employment indicator on the resume, a sudden shift in login location from the US to Russia within 15 minutes, and the granting of OAuth consent to a suspicious application named 'UnknownMailSync' with Mail.Read permissions.",
+        "behaviors": [
+            "Onboarding verification anomalies (overlapping employment flags).",
+            "Anomalous traveler check-in (US to RU login transition in 15 minutes).",
+            "OAuth consent grant to non-standard application requesting sensitive read permissions."
+        ],
+        "iocs": [
+            "Account: contractor.mills",
+            "Applicant Profile: remote.engineer.17",
+            "Application: UnknownMailSync",
+            "OAuth Permission: Mail.Read, offline_access"
+        ]
+    }
+}
+
+# =========================
+# SESSION STATE INITIALIZATION
+# =========================
+
+if "raw_telemetry" not in st.session_state:
+    st.session_state.raw_telemetry = sample_logs["Full Correlated Hunt Case"]
+if "last_selected_source" not in st.session_state:
+    st.session_state.last_selected_source = "Full Correlated Hunt Case"
+if "last_data_source" not in st.session_state:
+    st.session_state.last_data_source = "Built-in Samples"
+
 # =========================
 # SIDEBAR
 # =========================
@@ -161,101 +562,217 @@ st.sidebar.write("Running detection engine")
 st.sidebar.write("Building entity graph")
 st.sidebar.write("Generating AI analysis")
 
-# =========================
-# AUTO REFRESH
-# =========================
-
-# Auto-refresh disabled so AI analysis and reports do not disappear.
-# st_autorefresh(
-#     interval=5000,
-#     key="threatscope_refresh"
-# )
+# Bind global telemetry text
+input_text = st.session_state.raw_telemetry
 
 # =========================
-# DATA SOURCE LOGIC
+# TAB 1: DATA INGESTION
 # =========================
 
-if data_source == "Built-in Samples":
-    selected_source = st.selectbox(
-        "Simulated SIEM / Environment Source",
-        list(sample_logs.keys())
-    )
+with tab_ingest:
+    st.markdown("<h3 style='color:#e2e8f0; font-family:sans-serif; margin-bottom:15px;'>TELEMETRY DATA SOURCE</h3>", unsafe_allow_html=True)
+    
+    if data_source != st.session_state.last_data_source:
+        st.session_state.last_data_source = data_source
+        if data_source == "Built-in Samples":
+            st.session_state.raw_telemetry = sample_logs[st.session_state.last_selected_source]
+        else:
+            st.session_state.raw_telemetry = ""
+        st.rerun()
 
-    input_text = st.text_area(
-        "Simulated Telemetry",
-        value=sample_logs[selected_source],
-        height=300
-    )
-
-elif data_source == "Elastic SIEM Connector (Local Demo)":
-
-    st.subheader("Elastic SIEM Connector")
-
-    elastic_index = st.text_input(
-        "Elastic Index",
-        value="threatscope-logs"
-    )
-
-    limit = st.slider(
-        "Number of Events",
-        5,
-        100,
-        25
-    )
-
-    try:
-        elastic_events = fetch_elastic_events(
-            index_name=elastic_index,
-            limit=limit
+    if data_source == "Built-in Samples":
+        selected_source = st.selectbox(
+            "Simulated SIEM / Environment Source",
+            list(sample_logs.keys())
         )
+        if selected_source != st.session_state.last_selected_source:
+            st.session_state.last_selected_source = selected_source
+            st.session_state.raw_telemetry = sample_logs[selected_source]
+            st.rerun()
 
-        st.success(
-            f"Connected to Elastic index: {elastic_index}"
+    elif data_source == "Elastic SIEM Connector (Local Demo)":
+        st.subheader("Elastic SIEM Connector")
+        elastic_index = st.text_input("Elastic Index", value="threatscope-logs")
+        limit = st.slider("Number of Events", 5, 100, 25)
+        
+        col_conn1, col_conn2 = st.columns([3, 1])
+        with col_conn1:
+            connect_clicked = st.button("🔌 CONNECT & PULL", use_container_width=True)
+        with col_conn2:
+            clear_conn_clicked = st.button("CLEAR", use_container_width=True)
+            if clear_conn_clicked:
+                st.session_state.raw_telemetry = ""
+                st.rerun()
+                
+        if connect_clicked:
+            try:
+                elastic_events = fetch_elastic_events(index_name=elastic_index, limit=limit)
+                st.success(f"Connected to Elastic index: {elastic_index}")
+                st.session_state.raw_telemetry = events_to_text(elastic_events)
+                st.rerun()
+            except Exception as error:
+                st.error(f"Elastic connection failed: {error}")
+
+    st.markdown("<hr style='border-color: #1e293b;' />", unsafe_allow_html=True)
+    
+    col_left, col_right = st.columns(2)
+    
+    with col_left:
+        st.markdown("<h4 style='color:#cbd5e1; font-family:sans-serif; margin-top:0;'>MANUAL INPUT SOURCE</h4>", unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader(
+            "Drag & Drop Intel Files Here (Supports .pdf, .txt)",
+            type=["pdf", "txt"],
+            key="manual_file_uploader",
+            label_visibility="collapsed"
         )
-
-        input_text = events_to_text(elastic_events)
-
-        st.text_area(
-            "Elastic Telemetry",
-            value=input_text,
-            height=300
+        if uploaded_file is not None:
+            file_text = extract_text_from_file(uploaded_file)
+            if file_text != st.session_state.raw_telemetry:
+                st.session_state.raw_telemetry = file_text
+                st.rerun()
+                
+        url_col1, url_col2 = st.columns([3, 1])
+        with url_col1:
+            url_input = st.text_input(
+                "Paste Threat Report URL", 
+                placeholder="Paste Threat Report URL (e.g., thedfirreport.com/ioc...)",
+                label_visibility="collapsed",
+                key="threat_url_input"
+            )
+        with url_col2:
+            fetch_clicked = st.button("⚡ FETCH", use_container_width=True)
+            
+        if fetch_clicked and url_input:
+            with st.spinner("Fetching URL content..."):
+                fetched_text = fetch_url_content(url_input)
+                if fetched_text != st.session_state.raw_telemetry:
+                    st.session_state.raw_telemetry = fetched_text
+                    st.rerun()
+                    
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        header_col1, header_col2 = st.columns([3, 1])
+        with header_col1:
+            st.markdown("<h5 style='color:#cbd5e1; font-family:sans-serif; margin-top:0;'>RAW TEXT EXTRACTION</h5>", unsafe_allow_html=True)
+        with header_col2:
+            clear_clicked = st.button("CLEAR", type="secondary", use_container_width=True, key="clear_raw_text_btn")
+            if clear_clicked:
+                st.session_state.raw_telemetry = ""
+                st.rerun()
+                
+        input_text_area = st.text_area(
+            "Raw Telemetry Data Editor",
+            value=st.session_state.raw_telemetry,
+            height=320,
+            label_visibility="collapsed",
+            key="raw_telemetry_editor"
         )
+        if input_text_area != st.session_state.raw_telemetry:
+            st.session_state.raw_telemetry = input_text_area
+            st.rerun()
+            
+        ingest_clicked = st.button("⚡ Ingest to Backend", use_container_width=True, key="ingest_to_backend_action_btn")
+        if ingest_clicked:
+            if not st.session_state.raw_telemetry.strip():
+                st.warning("No telemetry data to ingest.")
+            else:
+                try:
+                    es = Elasticsearch("http://localhost:9200")
+                    if not es.ping():
+                        st.error("Elasticsearch is not running or unreachable at http://localhost:9200")
+                    else:
+                        lines = st.session_state.raw_telemetry.strip().split("\n")
+                        success_count = 0
+                        for line in lines:
+                            parsed = parse_log_line(line)
+                            if parsed:
+                                es.index(index="threatscope-logs", document=parsed)
+                                success_count += 1
+                        if success_count > 0:
+                            st.success(f"Successfully ingested {success_count} logs into Elasticsearch index 'threatscope-logs'!")
+                        else:
+                            st.warning("No valid events parsed from telemetry. Ensure logs are JSON or space-separated key=value lines.")
+                except Exception as err:
+                    st.error(f"Ingestion failed: {err}")
 
-    except Exception as error:
-        st.error(
-            f"Elastic connection failed: {error}"
-        )
+    with col_right:
+        header_r1, header_r2 = st.columns([2, 1])
+        with header_r1:
+            st.markdown("<h4 style='color:#cbd5e1; font-family:sans-serif; margin-top:0;'>EXTRACTED THREAT BRIEF</h4>", unsafe_allow_html=True)
+        with header_r2:
+            matched_sample = None
+            for sample_name, sample_text in sample_logs.items():
+                if st.session_state.raw_telemetry.strip() == sample_text.strip():
+                    matched_sample = sample_name
+                    break
+                    
+            if matched_sample:
+                brief = pre_extracted_briefs[matched_sample]
+            else:
+                brief = extract_threat_brief_from_llm(st.session_state.raw_telemetry)
+                
+            brief_md = f"""# Extracted Threat Brief
 
-        input_text = ""
+## Summary
+{brief['summary']}
+
+## Behavioral Indicators
+""" + "\n".join([f"- {b}" for b in brief['behaviors']]) + """
+
+## Indicators of Compromise
+""" + "\n".join([f"- {ioc}" for ioc in brief['iocs']])
+
+            st.download_button(
+                label="📄 EXPORT BRIEF",
+                data=brief_md,
+                file_name="extracted_threat_brief.md",
+                mime="text/markdown",
+                use_container_width=True,
+                key="export_threat_brief_download_btn"
+            )
+            
+        render_card("Summary", brief['summary'], "#00f0ff")
+        
+        behaviors_html = ""
+        if brief['behaviors'] and not (len(brief['behaviors']) == 1 and "No behaviors" in brief['behaviors'][0]):
+            behaviors_html = "".join([f"<p style='margin: 4px 0; font-family: sans-serif;'>• {b}</p>" for b in brief['behaviors']])
+        else:
+            behaviors_html = "<p style='font-style: italic; color: #64748b; font-family: sans-serif;'>No behaviors extracted.</p>"
+        render_card("Behavioral Indicators", behaviors_html, "#ff4d4d")
+        
+        iocs_html = ""
+        if brief['iocs'] and not (len(brief['iocs']) == 1 and "No IOCs" in brief['iocs'][0]):
+            iocs_html = "".join([f"<p style='margin: 4px 0; font-family: sans-serif;'>• {ioc}</p>" for ioc in brief['iocs']])
+        else:
+            iocs_html = "<p style='font-style: italic; color: #64748b; font-family: sans-serif;'>No IOCs extracted.</p>"
+        render_card("Indicators of Compromise", iocs_html, "#ff9933")
 
 # =========================
-# THREAT DETECTION ENGINE
+# PARSING RAW TELEMETRY (GLOBAL RUN)
 # =========================
 
-detections = run_detections(input_text)
+parsed_events = []
+if input_text.strip():
+    for line in input_text.strip().split("\n"):
+        parsed = parse_log_line(line)
+        if parsed:
+            parsed_events.append(parsed)
+
+# =========================
+# THREAT DETECTION RUN
+# =========================
+
+detections = run_detections(parsed_events, raw_text=input_text)
 
 # =========================
 # RISK SCORING
 # =========================
 
 risk_score = 0
-
-severity_weights = {
-    "LOW": 1,
-    "MEDIUM": 2,
-    "HIGH": 3,
-    "CRITICAL": 4
-}
-
+severity_weights = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
 for detection in detections:
-    risk_score += severity_weights.get(
-        detection["severity"],
-        1
-    )
-
-# =========================
-# OVERALL SEVERITY
-# =========================
+    risk_score += severity_weights.get(detection["severity"], 1)
 
 if risk_score >= 12:
     severity = "CRITICAL"
@@ -267,398 +784,422 @@ else:
     severity = "LOW"
 
 # =========================
-# ALERTING
+# MAPPED TECHNIQUES
 # =========================
-
-if severity == "CRITICAL":
-    st.error("ALERT: Critical correlated threat activity detected")
-elif severity == "HIGH":
-    st.warning("WARNING: High-risk suspicious activity identified")
-elif severity == "MEDIUM":
-    st.info("NOTICE: Medium-risk suspicious activity observed")
-else:
-    st.success("No significant threat indicators detected")
-
-# =========================
-# DETECTION SUMMARY
-# =========================
-
-st.subheader("ThreatScope Detection Engine")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("Risk Score", risk_score)
-
-with col2:
-    st.metric("Overall Severity", severity)
-
-with col3:
-    st.metric("Detections", len(detections))
-
-# =========================
-# DETECTION RESULTS
-# =========================
-
-if len(detections) > 0:
-    for detection in detections:
-        if detection["severity"] == "CRITICAL":
-            st.error(
-                f"{detection['title']} ({detection['severity']})"
-            )
-        elif detection["severity"] == "HIGH":
-            st.warning(
-                f"{detection['title']} ({detection['severity']})"
-            )
-        else:
-            st.info(
-                f"{detection['title']} ({detection['severity']})"
-            )
-
-        st.write(detection["description"])
-
-        st.caption(
-            f"MITRE ATT&CK: {detection['mitre']} | Confidence: {detection['confidence']}"
-        )
-
-        st.caption(
-            f"Hunt Pivot: {detection['hunt_pivot']}"
-        )
-else:
-    st.success("No significant detections identified.")
-
-# =========================
-# MITRE ATT&CK MAPPING
-# =========================
-
-st.subheader("MITRE ATT&CK Mapping")
 
 mapped_techniques = set()
-
 for detection in detections:
-    mapped_techniques.add(
-        detection["mitre"]
-    )
-
-if len(mapped_techniques) > 0:
-    for technique in sorted(mapped_techniques):
-        st.write(f"- {technique}")
-else:
-    st.write("No ATT&CK mappings identified.")
+    mapped_techniques.add(detection["mitre"])
 
 # =========================
-# THREAT TIMELINE
+# TIMELINE EXTRACTION
 # =========================
-
-st.subheader("Threat Timeline")
 
 timeline_events = []
-
-if "vpn_login" in input_text:
-    timeline_events.append({
-        "time": "07:41",
-        "event": "Foreign VPN Login",
-        "severity": "HIGH"
-    })
-
-if "mfa_push" in input_text:
-    timeline_events.append({
-        "time": "07:48",
-        "event": "MFA Approval",
-        "severity": "MEDIUM"
-    })
-
-if "protocol=ssh" in input_text or 'protocol": "ssh' in input_text:
-    timeline_events.append({
-        "time": "07:56",
-        "event": "SSH Remote Management Enabled",
-        "severity": "HIGH"
-    })
-
-if "powershell.exe" in input_text:
-    timeline_events.append({
-        "time": "08:02",
-        "event": "PowerShell Execution",
-        "severity": "HIGH"
-    })
-
-if "wmic.exe" in input_text:
-    timeline_events.append({
-        "time": "08:04",
-        "event": "WMI Remote Execution",
-        "severity": "HIGH"
-    })
-
-if "GlobalAdmin" in input_text:
-    timeline_events.append({
-        "time": "08:06",
-        "event": "Privileged Role Escalation",
-        "severity": "CRITICAL"
-    })
-
-if "Diameter" in input_text:
-    timeline_events.append({
-        "time": "08:21",
-        "event": "Diameter Roaming Authentication Anomaly",
-        "severity": "HIGH"
-    })
-
-if "SS7" in input_text:
-    timeline_events.append({
-        "time": "08:25",
-        "event": "SS7 Signaling Spike",
-        "severity": "HIGH"
-    })
-
-if "GTP" in input_text:
-    timeline_events.append({
-        "time": "08:29",
-        "event": "GTP Roaming Session Anomaly",
-        "severity": "HIGH"
-    })
-
-if "unverified" in input_text:
-    timeline_events.append({
-        "time": "08:31",
-        "event": "Unverified Contractor Access Request",
-        "severity": "MEDIUM"
-    })
-
-if "oauth" in input_text.lower():
-    timeline_events.append({
-        "time": "08:44",
-        "event": "OAuth Persistence Activity",
-        "severity": "CRITICAL"
-    })
-
-if len(timeline_events) > 0:
-    for event in timeline_events:
-        if event["severity"] == "CRITICAL":
-            st.error(
-                f"{event['time']} | {event['event']}"
-            )
-        elif event["severity"] == "HIGH":
-            st.warning(
-                f"{event['time']} | {event['event']}"
-            )
+if len(parsed_events) > 0:
+    for ev in parsed_events:
+        ts = ev.get("@timestamp") or ev.get("timestamp") or ev.get("time") or ""
+        if not ts:
+            continue
+        
+        time_display = ts
+        match = re.search(r'T(\d{2}:\d{2}(?::\d{2})?)', ts)
+        if match:
+            time_display = match.group(1)
+            
+        event_desc = ""
+        event_type = ev.get("event") or ev.get("event.name") or ev.get("event.action") or ""
+        
+        if event_type == "vpn_login":
+            user = ev.get("user") or ev.get("actor") or "Unknown"
+            country = ev.get("country", "")
+            country_str = f" from {country}" if country else ""
+            event_desc = f"VPN Login Success: {user}{country_str}"
+        elif event_type == "mfa_push":
+            user = ev.get("user") or "Unknown"
+            result = ev.get("result") or "approved"
+            event_desc = f"MFA Push Notification {result.capitalize()} for {user}"
+        elif ev.get("protocol") == "ssh" or event_type == "remote_mgmt_enabled":
+            actor = ev.get("actor") or "Unknown"
+            event_desc = f"SSH Remote Management Enabled by {actor}"
+        elif "powershell.exe" in str(ev.get("process", "")).lower():
+            host = ev.get("host") or "Unknown Host"
+            event_desc = f"PowerShell Process Execution on {host}"
+        elif "wmic.exe" in str(ev.get("process", "")).lower():
+            host = ev.get("host") or "Unknown Host"
+            event_desc = f"WMI Process Execution on {host}"
+        elif ev.get("role") or event_type == "azure_role_assignment":
+            role = ev.get("role") or "GlobalAdmin"
+            user = ev.get("user") or ev.get("actor") or "Unknown"
+            event_desc = f"Cloud Role Assigned: {role} to {user}"
+        elif ev.get("oauth_app_consent") or "oauth" in str(ev).lower():
+            app = ev.get("oauth_app_consent") or ev.get("app") or "Unknown App"
+            event_desc = f"OAuth Consent Granted to {app}"
+        elif ev.get("protocol") == "SS7":
+            count = ev.get("subscriber_count") or ""
+            count_str = f" ({count} subscribers)" if count else ""
+            event_desc = f"SS7 Location Query Volume Spike{count_str}"
+        elif ev.get("protocol") == "Diameter":
+            event_desc = "Diameter Roaming Authentication Anomaly"
+        elif ev.get("protocol") == "GTP":
+            event_desc = "GTP Roaming Session Anomaly"
+        elif ev.get("applicant"):
+            applicant = ev.get("applicant") or "Unknown"
+            status = ev.get("verification_status") or "unverified"
+            event_desc = f"HR Onboarding On-risk check: {applicant} ({status})"
+        elif ev.get("login_location_change") or ev.get("worker"):
+            worker = ev.get("worker") or "Unknown"
+            change = ev.get("login_location_change") or ""
+            change_str = f" ({change})" if change else ""
+            event_desc = f"Impossible Travel / Geo-velocity Alert: {worker}{change_str}"
         else:
-            st.info(
-                f"{event['time']} | {event['event']}"
-            )
+            desc_parts = []
+            for k, v in ev.items():
+                if k not in ["@timestamp", "source", "category"]:
+                    desc_parts.append(f"{k}={v}")
+            event_desc = ", ".join(desc_parts)[:80]
+            if not event_desc:
+                event_desc = f"Event type: {event_type or 'generic'}"
+
+        sev = "LOW"
+        ev_str = str(ev).lower()
+        if "globaladmin" in ev_str or "oauth" in ev_str or "critical" in ev_str:
+            sev = "CRITICAL"
+        elif "powershell.exe" in ev_str or "wmic.exe" in ev_str or "vpn_login" in ev_str or "ss7" in ev_str or "diameter" in ev_str or "gtp" in ev_str or "high" in ev_str:
+            sev = "HIGH"
+        elif "mfa_push" in ev_str or "unverified" in ev_str or "medium" in ev_str:
+            sev = "MEDIUM"
+            
+        timeline_events.append({
+            "time": time_display,
+            "raw_time": ts,
+            "event": event_desc,
+            "severity": sev
+        })
+    timeline_events.sort(key=lambda x: x["raw_time"])
 else:
-    st.success("No correlated timeline activity identified.")
+    if "vpn_login" in input_text:
+        timeline_events.append({"time": "07:41", "event": "Foreign VPN Login", "severity": "HIGH", "raw_time": "07:41"})
+    if "mfa_push" in input_text:
+        timeline_events.append({"time": "07:48", "event": "MFA Approval", "severity": "MEDIUM", "raw_time": "07:48"})
+    if "protocol=ssh" in input_text or 'protocol": "ssh' in input_text:
+        timeline_events.append({"time": "07:56", "event": "SSH Remote Management Enabled", "severity": "HIGH", "raw_time": "07:56"})
+    if "powershell.exe" in input_text:
+        timeline_events.append({"time": "08:02", "event": "PowerShell Execution", "severity": "HIGH", "raw_time": "08:02"})
+    if "wmic.exe" in input_text:
+        timeline_events.append({"time": "08:04", "event": "WMI Remote Execution", "severity": "HIGH", "raw_time": "08:04"})
+    if "GlobalAdmin" in input_text:
+        timeline_events.append({"time": "08:06", "event": "Privileged Role Escalation", "severity": "CRITICAL", "raw_time": "08:06"})
+    if "Diameter" in input_text:
+        timeline_events.append({"time": "08:21", "event": "Diameter Roaming Authentication Anomaly", "severity": "HIGH", "raw_time": "08:21"})
+    if "SS7" in input_text:
+        timeline_events.append({"time": "08:25", "event": "SS7 Signaling Spike", "severity": "HIGH", "raw_time": "08:25"})
+    if "GTP" in input_text:
+        timeline_events.append({"time": "08:29", "event": "GTP Roaming Session Anomaly", "severity": "HIGH", "raw_time": "08:29"})
+    if "unverified" in input_text:
+        timeline_events.append({"time": "08:31", "event": "Unverified Contractor Access Request", "severity": "MEDIUM", "raw_time": "08:31"})
+    if "oauth" in input_text.lower():
+        timeline_events.append({"time": "08:44", "event": "OAuth Persistence Activity", "severity": "CRITICAL", "raw_time": "08:44"})
+
 
 # =========================
-# ENTITY CORRELATION GRAPH
+# TAB 2: DETECTIONS & TIMELINE
 # =========================
 
-st.subheader("Entity Correlation Graph")
+with tab_hunt:
+    if severity == "CRITICAL":
+        st.error("ALERT: Critical correlated threat activity detected")
+    elif severity == "HIGH":
+        st.warning("WARNING: High-risk suspicious activity identified")
+    elif severity == "MEDIUM":
+        st.info("NOTICE: Medium-risk suspicious activity observed")
+    else:
+        st.success("No significant threat indicators detected")
+        
+    st.subheader("Autonomous Hunt Metrics")
+    col_m1, col_m2, col_m3 = st.columns(3)
+    
+    sev_colors = {
+        "CRITICAL": "#ef4444",
+        "HIGH": "#f97316",
+        "MEDIUM": "#eab308",
+        "LOW": "#10b981"
+    }
+    sev_icons = {
+        "CRITICAL": "☣️",
+        "HIGH": "⚠️",
+        "MEDIUM": "🔔",
+        "LOW": "✅"
+    }
+    
+    with col_m1:
+        render_metric_card("Risk Score", risk_score, "#00f0ff", "⚡")
+    with col_m2:
+        render_metric_card("Overall Severity", severity, sev_colors.get(severity, "#cbd5e1"), sev_icons.get(severity, "ℹ️"))
+    with col_m3:
+        render_metric_card("Correlated Detections", len(detections), "#a855f7", "🔍")
+        
+    st.markdown("<br><hr style='border-color: #1e293b;' />", unsafe_allow_html=True)
+    
+    col_det, col_time = st.columns([5, 4])
+    
+    with col_det:
+        st.subheader("ThreatScope Detection Engine")
+        if len(detections) > 0:
+            for detection in detections:
+                render_detection_card(detection)
+        else:
+            st.success("No significant detections identified.")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("MITRE ATT&CK Mapping")
+        if len(mapped_techniques) > 0:
+            for technique in sorted(mapped_techniques):
+                st.write(f"- {technique}")
+        else:
+            st.write("No ATT&CK mappings identified.")
 
-graph = nx.Graph()
+    with col_time:
+        st.subheader("Threat Timeline")
+        if len(timeline_events) > 0:
+            st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
+            for event in timeline_events:
+                sev_class = event["severity"].lower()
+                st.markdown(f"""
+                <div class="timeline-node {sev_class}">
+                    <span class="timeline-time">[{event['time']}]</span> 
+                    <span style="color: #cbd5e1; font-family: sans-serif; font-size: 0.95rem; margin-left: 5px;">{event['event']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.success("No correlated timeline activity identified.")
 
-def add_graph_node(name, color):
-    if name not in graph:
-        graph.add_node(
-            name,
-            color=color,
-            title=name
+
+# =========================
+# TAB 3: ENTITY GRAPH
+# =========================
+
+with tab_graph:
+    st.subheader("Entity Correlation Graph")
+    
+    graph = nx.Graph()
+    
+    if len(parsed_events) > 0:
+        entity_types = {
+            "user": {"color": "#ff4d4d", "keys": ["user", "actor", "worker", "username"]},
+            "ip": {"color": "#ff9933", "keys": ["source_ip", "dest_ip", "ip"]},
+            "host": {"color": "#a855f7", "keys": ["host", "hostname", "device"]},
+            "process": {"color": "#eab308", "keys": ["process", "process.name"]},
+            "role": {"color": "#ec4899", "keys": ["role"]},
+            "app": {"color": "#3b82f6", "keys": ["oauth_app_consent", "app"]},
+            "protocol": {"color": "#10b981", "keys": ["protocol"]}
+        }
+        
+        def add_node_if_new(name, category):
+            color = entity_types[category]["color"]
+            if name and name not in graph:
+                graph.add_node(name, color=color, title=f"{category.capitalize()}: {name}", label=name)
+
+        for ev in parsed_events:
+            event_entities = []
+            for category, cfg in entity_types.items():
+                for key in cfg["keys"]:
+                    val = ev.get(key)
+                    if val:
+                        val_str = str(val).strip()
+                        if val_str and val_str.lower() != "none" and val_str.lower() != "null":
+                            add_node_if_new(val_str, category)
+                            event_entities.append(val_str)
+            
+            for k, v in ev.items():
+                if isinstance(v, str):
+                    ips = re.findall(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', v)
+                    for ip in ips:
+                        add_node_if_new(ip, "ip")
+                        event_entities.append(ip)
+
+            if len(event_entities) > 1:
+                central_node = None
+                for ent in event_entities:
+                    for category in ["user", "host"]:
+                        for key in entity_types[category]["keys"]:
+                            if ev.get(key) == ent:
+                                central_node = ent
+                                break
+                        if central_node:
+                            break
+                
+                if not central_node:
+                    central_node = event_entities[0]
+                    
+                for ent in event_entities:
+                    if ent != central_node:
+                        graph.add_edge(central_node, ent)
+    else:
+        def add_graph_node(name, color):
+            if name not in graph:
+                graph.add_node(name, color=color, title=name, label=name)
+                
+        if "contractor.mills" in input_text:
+            add_graph_node("contractor.mills", "red")
+        if "185.220.101.44" in input_text:
+            add_graph_node("185.220.101.44", "orange")
+        if "104.28.45.12" in input_text:
+            add_graph_node("104.28.45.12", "orange")
+        if "cisco-edge-12" in input_text:
+            add_graph_node("cisco-edge-12", "purple")
+        if "CORP-LT-448" in input_text:
+            add_graph_node("CORP-LT-448", "purple")
+        if "powershell.exe" in input_text:
+            add_graph_node("powershell.exe", "yellow")
+        if "wmic.exe" in input_text:
+            add_graph_node("wmic.exe", "yellow")
+        if "GlobalAdmin" in input_text:
+            add_graph_node("GlobalAdmin", "pink")
+        if "UnknownMailSync" in input_text:
+            add_graph_node("UnknownMailSync", "blue")
+        if "Diameter" in input_text:
+            add_graph_node("Diameter", "green")
+        if "SS7" in input_text:
+            add_graph_node("SS7", "green")
+        if "GTP" in input_text:
+            add_graph_node("GTP", "green")
+        if "remote.engineer.17" in input_text:
+            add_graph_node("remote.engineer.17", "gray")
+
+        if "contractor.mills" in input_text and "185.220.101.44" in input_text:
+            graph.add_edge("contractor.mills", "185.220.101.44")
+        if "contractor.mills" in input_text and "104.28.45.12" in input_text:
+            graph.add_edge("contractor.mills", "104.28.45.12")
+        if "contractor.mills" in input_text and "cisco-edge-12" in input_text:
+            graph.add_edge("contractor.mills", "cisco-edge-12")
+        if "contractor.mills" in input_text and "CORP-LT-448" in input_text:
+            graph.add_edge("contractor.mills", "CORP-LT-448")
+        if "CORP-LT-448" in input_text and "powershell.exe" in input_text:
+            graph.add_edge("CORP-LT-448", "powershell.exe")
+        if "powershell.exe" in input_text and "wmic.exe" in input_text:
+            graph.add_edge("powershell.exe", "wmic.exe")
+        if "contractor.mills" in input_text and "GlobalAdmin" in input_text:
+            graph.add_edge("contractor.mills", "GlobalAdmin")
+        if "contractor.mills" in input_text and "UnknownMailSync" in input_text:
+            graph.add_edge("contractor.mills", "UnknownMailSync")
+        if "contractor.mills" in input_text and "Diameter" in input_text:
+            graph.add_edge("contractor.mills", "Diameter")
+        if "contractor.mills" in input_text and "SS7" in input_text:
+            graph.add_edge("contractor.mills", "SS7")
+        if "contractor.mills" in input_text and "GTP" in input_text:
+            graph.add_edge("contractor.mills", "GTP")
+        if "remote.engineer.17" in input_text and "contractor.mills" in input_text:
+            graph.add_edge("remote.engineer.17", "contractor.mills")
+
+    if len(graph.nodes) > 0:
+        net = Network(
+            height="500px",
+            width="100%",
+            bgcolor="#111111",
+            font_color="white"
         )
+        net.from_nx(graph)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_file:
+            net.save_graph(tmp_file.name)
+            with open(tmp_file.name, "r", encoding="utf-8") as graph_file:
+                html_content = graph_file.read()
+        st.components.v1.html(html_content, height=550)
+    else:
+        st.info("No entity relationships identified.")
 
-
-def add_graph_edge(source, target):
-    graph.add_edge(
-        source,
-        target
-    )
-
-if "contractor.mills" in input_text:
-    add_graph_node("contractor.mills", "red")
-
-if "185.220.101.44" in input_text:
-    add_graph_node("185.220.101.44", "orange")
-
-if "104.28.45.12" in input_text:
-    add_graph_node("104.28.45.12", "orange")
-
-if "cisco-edge-12" in input_text:
-    add_graph_node("cisco-edge-12", "purple")
-
-if "CORP-LT-448" in input_text:
-    add_graph_node("CORP-LT-448", "purple")
-
-if "powershell.exe" in input_text:
-    add_graph_node("powershell.exe", "yellow")
-
-if "wmic.exe" in input_text:
-    add_graph_node("wmic.exe", "yellow")
-
-if "GlobalAdmin" in input_text:
-    add_graph_node("GlobalAdmin", "pink")
-
-if "UnknownMailSync" in input_text:
-    add_graph_node("UnknownMailSync", "blue")
-
-if "Diameter" in input_text:
-    add_graph_node("Diameter", "green")
-
-if "SS7" in input_text:
-    add_graph_node("SS7", "green")
-
-if "GTP" in input_text:
-    add_graph_node("GTP", "green")
-
-if "remote.engineer.17" in input_text:
-    add_graph_node("remote.engineer.17", "gray")
-
-if "contractor.mills" in input_text and "185.220.101.44" in input_text:
-    add_graph_edge("contractor.mills", "185.220.101.44")
-
-if "contractor.mills" in input_text and "104.28.45.12" in input_text:
-    add_graph_edge("contractor.mills", "104.28.45.12")
-
-if "contractor.mills" in input_text and "cisco-edge-12" in input_text:
-    add_graph_edge("contractor.mills", "cisco-edge-12")
-
-if "contractor.mills" in input_text and "CORP-LT-448" in input_text:
-    add_graph_edge("contractor.mills", "CORP-LT-448")
-
-if "CORP-LT-448" in input_text and "powershell.exe" in input_text:
-    add_graph_edge("CORP-LT-448", "powershell.exe")
-
-if "powershell.exe" in input_text and "wmic.exe" in input_text:
-    add_graph_edge("powershell.exe", "wmic.exe")
-
-if "contractor.mills" in input_text and "GlobalAdmin" in input_text:
-    add_graph_edge("contractor.mills", "GlobalAdmin")
-
-if "contractor.mills" in input_text and "UnknownMailSync" in input_text:
-    add_graph_edge("contractor.mills", "UnknownMailSync")
-
-if "contractor.mills" in input_text and "Diameter" in input_text:
-    add_graph_edge("contractor.mills", "Diameter")
-
-if "contractor.mills" in input_text and "SS7" in input_text:
-    add_graph_edge("contractor.mills", "SS7")
-
-if "contractor.mills" in input_text and "GTP" in input_text:
-    add_graph_edge("contractor.mills", "GTP")
-
-if "remote.engineer.17" in input_text and "contractor.mills" in input_text:
-    add_graph_edge("remote.engineer.17", "contractor.mills")
-
-if len(graph.nodes) > 0:
-    net = Network(
-        height="500px",
-        width="100%",
-        bgcolor="#111111",
-        font_color="white"
-    )
-
-    net.from_nx(graph)
-
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".html"
-    ) as tmp_file:
-        net.save_graph(tmp_file.name)
-
-        with open(
-            tmp_file.name,
-            "r",
-            encoding="utf-8"
-        ) as graph_file:
-            html_content = graph_file.read()
-
-    st.components.v1.html(
-        html_content,
-        height=550
-    )
-else:
-    st.info("No entity relationships identified.")
 
 # =========================
-# HUNT SUMMARY
+# TAB 4: AI ANALYSIS & REPORT
 # =========================
 
-st.subheader("Hunt Summary")
-
-if len(detections) > 0:
-    st.write(
-        "ThreatScope identified correlated suspicious activity across identity, infrastructure, endpoint, and telecom telemetry sources."
-    )
-else:
-    st.write(
-        "No significant suspicious activity identified in current telemetry."
-    )
-# =========================
-# HUNT REPORT GENERATOR
-# =========================
-
-st.subheader("Hunt Report")
-
-report_lines = []
-
-report_lines.append("# ThreatScope Hunt Report")
-report_lines.append("")
-report_lines.append("## Executive Summary")
-report_lines.append(
-    f"ThreatScope identified {len(detections)} detection(s) with an overall severity of {severity} and a risk score of {risk_score}."
-)
-report_lines.append("")
-
-report_lines.append("## Detection Findings")
-report_lines.append("")
-
-if len(detections) > 0:
-    for detection in detections:
-        report_lines.append(f"### {detection['title']}")
-        report_lines.append(f"- Severity: {detection['severity']}")
-        report_lines.append(f"- Confidence: {detection['confidence']}")
-        report_lines.append(f"- MITRE ATT&CK: {detection['mitre']}")
-        report_lines.append(f"- Description: {detection['description']}")
-        report_lines.append(f"- Hunt Pivot: {detection['hunt_pivot']}")
+with tab_report:
+    st.subheader("Hunt Summary")
+    
+    if len(detections) > 0:
+        st.write(
+            "ThreatScope identified correlated suspicious activity across identity, infrastructure, endpoint, and telecom telemetry sources."
+        )
+    else:
+        st.write(
+            "No significant suspicious activity identified in current telemetry."
+        )
+        
+    st.markdown("<hr style='border-color: #1e293b;' />", unsafe_allow_html=True)
+    
+    col_rep_left, col_rep_right = st.columns(2)
+    
+    with col_rep_left:
+        st.subheader("Hunt Report Export")
+        
+        report_lines = []
+        report_lines.append("# ThreatScope Hunt Report")
         report_lines.append("")
-else:
-    report_lines.append("No significant detections identified.")
-    report_lines.append("")
-
-report_lines.append("## Timeline")
-report_lines.append("")
-
-if len(timeline_events) > 0:
-    for event in timeline_events:
+        report_lines.append("## Executive Summary")
         report_lines.append(
-            f"- {event['time']} | {event['event']} | {event['severity']}"
+            f"ThreatScope identified {len(detections)} detection(s) with an overall severity of {severity} and a risk score of {risk_score}."
         )
-else:
-    report_lines.append("No timeline events identified.")
-
-report_lines.append("")
-report_lines.append("## Recommended Next Steps")
-report_lines.append("")
-report_lines.append("- Validate the source IPs, users, and devices involved.")
-report_lines.append("- Review privileged role assignments and OAuth consent grants.")
-report_lines.append("- Investigate telecom signaling anomalies across SS7, Diameter, and GTP.")
-report_lines.append("- Confirm whether activity aligns with approved maintenance or contractor access.")
-report_lines.append("- Preserve relevant logs for incident response review.")
-report_lines.append("")
-
-hunt_report = "\n".join(report_lines)
-
-st.download_button(
-    label="Download Hunt Report",
-    data=hunt_report,
-    file_name="threatscope_hunt_report.md",
-    mime="text/markdown"
-)
-
-with st.expander("Preview Hunt Report"):
-    st.markdown(hunt_report)
-# =========================
-# AI PROMPT
-# =========================
-
-prompt = f"""
+        report_lines.append("")
+        report_lines.append("## Detection Findings")
+        report_lines.append("")
+        
+        if len(detections) > 0:
+            for detection in detections:
+                report_lines.append(f"### {detection['title']}")
+                report_lines.append(f"- Severity: {detection['severity']}")
+                report_lines.append(f"- Confidence: {detection['confidence']}")
+                report_lines.append(f"- MITRE ATT&CK: {detection['mitre']}")
+                report_lines.append(f"- Description: {detection['description']}")
+                report_lines.append(f"- Hunt Pivot: {detection['hunt_pivot']}")
+                report_lines.append("")
+        else:
+            report_lines.append("No significant detections identified.")
+            report_lines.append("")
+            
+        report_lines.append("## Timeline")
+        report_lines.append("")
+        
+        if len(timeline_events) > 0:
+            for event in timeline_events:
+                report_lines.append(
+                    f"- {event['time']} | {event['event']} | {event['severity']}"
+                )
+        else:
+            report_lines.append("No timeline events identified.")
+            
+        report_lines.append("")
+        report_lines.append("## Recommended Next Steps")
+        report_lines.append("")
+        report_lines.append("- Validate the source IPs, users, and devices involved.")
+        report_lines.append("- Review privileged role assignments and OAuth consent grants.")
+        report_lines.append("- Investigate telecom signaling anomalies across SS7, Diameter, and GTP.")
+        report_lines.append("- Confirm whether activity aligns with approved maintenance or contractor access.")
+        report_lines.append("- Preserve relevant logs for incident response review.")
+        report_lines.append("")
+        
+        hunt_report = "\n".join(report_lines)
+        
+        st.download_button(
+            label="Download Hunt Report (.md)",
+            data=hunt_report,
+            file_name="threatscope_hunt_report.md",
+            mime="text/markdown",
+            use_container_width=True
+        )
+        
+        with st.expander("Preview Hunt Report"):
+            st.markdown(hunt_report)
+            
+    with col_rep_right:
+        st.subheader("AI-Assisted Analysis")
+        
+        st.info(
+            "AI-assisted analysis is generated on demand to conserve API usage."
+        )
+        
+        # Build prompt
+        prompt = f"""
 You are a defensive cyber threat intelligence analyst supporting a telecom environment.
 
 Analyze the telemetry for:
@@ -710,44 +1251,31 @@ Provide:
 
 Focus ONLY on defensive analysis and threat hunting.
 """
-
-# =========================
-# AI ANALYSIS
-# =========================
-
-st.subheader("ThreatScope AI Analysis")
-
-st.info(
-    "AI-assisted analysis is generated on demand to conserve API usage."
-)
-
-if st.button("Generate AI Analysis"):
-    try:
-        with st.spinner("Analyzing telemetry with ThreatScope AI..."):
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a defensive cyber threat intelligence analyst. Only provide defensive analysis, threat hunting guidance, and containment recommendations."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                temperature=0.3,
-                max_tokens=1200
-            )
-
-        ai_output = response.choices[0].message.content
-
-        if ai_output and ai_output.strip():
-            st.markdown(ai_output)
-        else:
-            st.warning("Groq returned an empty response. Try again or reduce the prompt size.")
-            st.json(response.model_dump())
-
-    except Exception as error:
-        st.error("AI analysis failed.")
-        st.exception(error)
+        
+        if st.button("Generate AI Analysis", use_container_width=True):
+            try:
+                with st.spinner("Analyzing telemetry with ThreatScope AI..."):
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a defensive cyber threat intelligence analyst. Only provide defensive analysis, threat hunting guidance, and containment recommendations."
+                            },
+                            {
+                                "role": "user",
+                                "content": prompt
+                            }
+                        ],
+                        temperature=0.3,
+                        max_tokens=1200
+                    )
+                
+                ai_output = response.choices[0].message.content
+                if ai_output and ai_output.strip():
+                    st.markdown(ai_output)
+                else:
+                    st.warning("Groq returned an empty response. Try again or reduce the prompt size.")
+            except Exception as error:
+                st.error("AI analysis failed.")
+                st.exception(error)
