@@ -145,6 +145,16 @@ def render_detection_card(detection):
     </div>
     """, unsafe_allow_html=True)
 
+# Helper function to render custom metric cards
+def render_metric_card(label, value, color, icon):
+    st.markdown(f"""
+    <div style="background-color: #111524; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-top: 4px solid {color}; transition: all 0.3s ease;">
+        <div style="font-size: 2.2rem; margin-bottom: 8px;">{icon}</div>
+        <div style="color: #94a3b8; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Inter', sans-serif;">{label}</div>
+        <div style="color: #f8fafc; font-size: 2.2rem; font-weight: 800; margin-top: 5px; font-family: 'Outfit', sans-serif;">{value}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 # =========================
 # GROQ CLIENT
 # =========================
