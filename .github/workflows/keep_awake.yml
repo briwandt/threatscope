@@ -7,9 +7,28 @@ on:
   workflow_dispatch: # Enables manually triggering the workflow from the Actions tab
 
 jobs:
-  ping:
+  keep-awake:
     runs-on: ubuntu-latest
     steps:
-      - name: Send keep-awake ping to Streamlit Cloud
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
         run: |
-          curl -sI -A "ThreatScopeKeepAlive/1.0" https://threatscope-ame8t7utwmtjl8rnyauohb.streamlit.app/
+          pip install playwright
+          playwright install chromium
+
+      - name: Run keep-awake script
+        run: python keep_awake.py
+
+      - name: Upload screenshot artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: app-screenshot
+          path: screenshot.png
