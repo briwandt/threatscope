@@ -243,4 +243,68 @@ def run_detections(events, raw_text=""):
             "hunt_pivot": "Review infrastructure changes, maintenance windows, actor identity, and originating IP addresses."
         })
 
+    # 12. SIM Swap / HLR sim_update
+    has_sim_swap = False
+    for ev in events:
+        event_name = str(ev.get("event", "")).lower()
+        if event_name == "sim_update" or "sim_update" in str(ev).lower():
+            has_sim_swap = True
+            break
+    if not has_sim_swap and raw_text:
+        if "sim_update" in raw_text.lower():
+            has_sim_swap = True
+
+    if has_sim_swap:
+        detections.append({
+            "title": "SIM Swap / IMSI Modification",
+            "severity": "HIGH",
+            "confidence": "HIGH",
+            "mitre": "T1098.006 - Account Manipulation: Additional Email Addresses",
+            "description": "HLR database indicates a SIM card update (IMSI change) for a subscriber profile.",
+            "hunt_pivot": "Verify update legitimacy with subscriber, check customer service logs, and inspect corresponding SMS OTP requests."
+        })
+
+    # 13. Cloud Audit Trail Modification
+    has_trail_mod = False
+    for ev in events:
+        event_name = str(ev.get("event", "")).lower()
+        if event_name == "updatetrail" or "stopped" in str(ev).lower() and "trail" in str(ev).lower():
+            has_trail_mod = True
+            break
+    if not has_trail_mod and raw_text:
+        if "updatetrail" in raw_text.lower() and "stopped" in raw_text.lower():
+            has_trail_mod = True
+
+    if has_trail_mod:
+        detections.append({
+            "title": "Cloud Audit Trail Modification",
+            "severity": "CRITICAL",
+            "confidence": "HIGH",
+            "mitre": "T1562.001 - Impede Detection: Disable or Modify Tools",
+            "description": "Cloud logging trail stopped or modified, impeding detection mechanisms.",
+            "hunt_pivot": "Review CloudTrail trail status changes, caller credentials, and originating IP addresses."
+        })
+
+    # 14. Inhibit System Recovery (vssadmin / delete shadows)
+    has_recovery_inhibit = False
+    for ev in events:
+        cmd = str(ev.get("command", "")).lower()
+        proc = str(ev.get("process", "")).lower()
+        if "vssadmin" in proc or "delete shadows" in cmd:
+            has_recovery_inhibit = True
+            break
+    if not has_recovery_inhibit and raw_text:
+        if "vssadmin" in raw_text.lower() or "delete shadows" in raw_text.lower():
+            has_recovery_inhibit = True
+
+    if has_recovery_inhibit:
+        detections.append({
+            "title": "Volume Shadow Copy Deletion",
+            "severity": "CRITICAL",
+            "confidence": "HIGH",
+            "mitre": "T1490 - Inhibit System Recovery",
+            "description": "Deletion of volume shadow copies detected, consistent with ransomware preparation.",
+            "hunt_pivot": "Inspect the host immediately, isolate the machine, check for file system changes and encryption activity."
+        })
+
     return detections
