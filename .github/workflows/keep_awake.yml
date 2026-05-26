@@ -1,6 +1,9 @@
 name: Keep ThreatScope App Awake
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # Run every 30 minutes to prevent the Streamlit Cloud app from going to sleep
     - cron: '*/30 * * * *'
