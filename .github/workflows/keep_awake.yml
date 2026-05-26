@@ -1,0 +1,15 @@
+name: Keep ThreatScope App Awake
+
+on:
+  schedule:
+    # Run every 30 minutes to prevent the Streamlit Cloud app from going to sleep
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Enables manually triggering the workflow from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send keep-awake ping to Streamlit Cloud
+        run: |
+          curl -sI -A "ThreatScopeKeepAlive/1.0" https://threatscope-ame8t7utwmtjl8rnyauohb.streamlit.app/
