@@ -12,9 +12,13 @@ on:
 jobs:
   keep-awake:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history so we can check the last commit date
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -28,6 +32,24 @@ jobs:
 
       - name: Run keep-awake script
         run: python keep_awake.py
+
+      - name: Keepalive Auto-Commit (Prevents GHA Cron Inactivity Suspension)
+        run: |
+          LAST_COMMIT_DATE=$(git log -1 --format=%ct)
+          CURRENT_DATE=$(date +%s)
+          AGE_DAYS=$(( (CURRENT_DATE - LAST_COMMIT_DATE) / 86400 ))
+          echo "Days since last commit: $AGE_DAYS"
+          if [ $AGE_DAYS -ge 30 ]; then
+            echo "Last commit was $AGE_DAYS days ago. Pushing keepalive commit..."
+            git config --local user.name "github-actions[bot]"
+            git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            date > keepalive.txt
+            git add keepalive.txt
+            git commit -m "chore: automated keepalive commit to prevent workflow suspension"
+            git push
+          else
+            echo "Repository has recent activity ($AGE_DAYS days since last commit). No keepalive commit needed."
+          fi
 
       - name: Upload screenshot artifact
         uses: actions/upload-artifact@v4
